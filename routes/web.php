@@ -98,5 +98,17 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('repairs/{repair}/mark-cancelled', [\App\Http\Controllers\Inventory\RepairController::class, 'markCancelled'])->name('repairs.mark-cancelled');
         
         Route::resource('maintenance', \App\Http\Controllers\Inventory\MaintenanceController::class);
+        
+        // Utilities Management
+        Route::resource('utility-meters', \App\Http\Controllers\Utilities\UtilityMeterController::class);
+        Route::patch('utility-meters/{utilityMeter}/toggle-status', [\App\Http\Controllers\Utilities\UtilityMeterController::class, 'toggleStatus'])->name('utility-meters.toggle-status');
+        
+        Route::resource('utility-readings', \App\Http\Controllers\Utilities\UtilityReadingController::class);
+        Route::patch('utility-readings/{utilityReading}/verify', [\App\Http\Controllers\Utilities\UtilityReadingController::class, 'verify'])->name('utility-readings.verify');
+        
+        Route::resource('utility-bills', \App\Http\Controllers\Utilities\UtilityBillController::class);
+        Route::patch('utility-bills/{utilityBill}/mark-paid', [\App\Http\Controllers\Utilities\UtilityBillController::class, 'markAsPaid'])->name('utility-bills.mark-paid');
+        Route::patch('utility-bills/{utilityBill}/mark-overdue', [\App\Http\Controllers\Utilities\UtilityBillController::class, 'markAsOverdue'])->name('utility-bills.mark-overdue');
+        Route::patch('utility-bills/{utilityBill}/mark-cancelled', [\App\Http\Controllers\Utilities\UtilityBillController::class, 'markAsCancelled'])->name('utility-bills.mark-cancelled');
     });
 });

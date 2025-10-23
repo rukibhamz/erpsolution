@@ -108,6 +108,24 @@
                                 Maintenance
                             </a>
                             @endcan
+                            
+                            @can('view-utility-meters')
+                            <a href="{{ route('admin.utility-meters.index') }}" class="inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 transition duration-150 ease-in-out">
+                                Utility Meters
+                            </a>
+                            @endcan
+                            
+                            @can('view-utility-readings')
+                            <a href="{{ route('admin.utility-readings.index') }}" class="inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 transition duration-150 ease-in-out">
+                                Utility Readings
+                            </a>
+                            @endcan
+                            
+                            @can('view-utility-bills')
+                            <a href="{{ route('admin.utility-bills.index') }}" class="inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 transition duration-150 ease-in-out">
+                                Utility Bills
+                            </a>
+                            @endcan
                         </div>
                     </div>
 
