@@ -54,10 +54,22 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('leases/{lease}/terminate', [\App\Http\Controllers\Property\LeaseController::class, 'terminate'])->name('leases.terminate');
         Route::patch('leases/{lease}/renew', [\App\Http\Controllers\Property\LeaseController::class, 'renew'])->name('leases.renew');
         
-        // Booking Management (to be implemented)
-        Route::get('bookings', function () {
-            return view('admin.bookings.index');
-        })->name('bookings.index');
+        // Event Management
+        Route::resource('events', \App\Http\Controllers\Booking\EventController::class);
+        Route::get('events/{event}/calendar', [\App\Http\Controllers\Booking\EventController::class, 'calendar'])->name('events.calendar');
+        Route::patch('events/{event}/toggle-status', [\App\Http\Controllers\Booking\EventController::class, 'toggleStatus'])->name('events.toggle-status');
+        Route::delete('events/{event}/remove-image', [\App\Http\Controllers\Booking\EventController::class, 'removeImage'])->name('events.remove-image');
+        
+        // Booking Management
+        Route::resource('bookings', \App\Http\Controllers\Booking\BookingController::class);
+        Route::patch('bookings/{booking}/confirm', [\App\Http\Controllers\Booking\BookingController::class, 'confirm'])->name('bookings.confirm');
+        Route::patch('bookings/{booking}/cancel', [\App\Http\Controllers\Booking\BookingController::class, 'cancel'])->name('bookings.cancel');
+        Route::patch('bookings/{booking}/complete', [\App\Http\Controllers\Booking\BookingController::class, 'complete'])->name('bookings.complete');
+        
+        // Payment Management
+        Route::resource('payments', \App\Http\Controllers\Booking\PaymentController::class);
+        Route::patch('payments/{payment}/mark-completed', [\App\Http\Controllers\Booking\PaymentController::class, 'markCompleted'])->name('payments.mark-completed');
+        Route::patch('payments/{payment}/mark-failed', [\App\Http\Controllers\Booking\PaymentController::class, 'markFailed'])->name('payments.mark-failed');
         
         // Accounting (to be implemented)
         Route::get('accounting', function () {
