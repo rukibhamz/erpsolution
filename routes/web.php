@@ -5,6 +5,9 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
+// Include public routes
+require __DIR__.'/public.php';
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -110,5 +113,20 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('utility-bills/{utilityBill}/mark-paid', [\App\Http\Controllers\Utilities\UtilityBillController::class, 'markAsPaid'])->name('utility-bills.mark-paid');
         Route::patch('utility-bills/{utilityBill}/mark-overdue', [\App\Http\Controllers\Utilities\UtilityBillController::class, 'markAsOverdue'])->name('utility-bills.mark-overdue');
         Route::patch('utility-bills/{utilityBill}/mark-cancelled', [\App\Http\Controllers\Utilities\UtilityBillController::class, 'markAsCancelled'])->name('utility-bills.mark-cancelled');
+        
+        // Tax & Revenue Management
+        Route::resource('tax-types', \App\Http\Controllers\Tax\TaxTypeController::class);
+        Route::patch('tax-types/{taxType}/toggle-status', [\App\Http\Controllers\Tax\TaxTypeController::class, 'toggleStatus'])->name('tax-types.toggle-status');
+        
+        Route::resource('tax-calculations', \App\Http\Controllers\Tax\TaxCalculationController::class);
+        Route::patch('tax-calculations/{taxCalculation}/mark-paid', [\App\Http\Controllers\Tax\TaxCalculationController::class, 'markAsPaid'])->name('tax-calculations.mark-paid');
+        Route::patch('tax-calculations/{taxCalculation}/mark-overdue', [\App\Http\Controllers\Tax\TaxCalculationController::class, 'markAsOverdue'])->name('tax-calculations.mark-overdue');
+        Route::patch('tax-calculations/{taxCalculation}/mark-cancelled', [\App\Http\Controllers\Tax\TaxCalculationController::class, 'markAsCancelled'])->name('tax-calculations.mark-cancelled');
+        
+        Route::resource('revenue-collections', \App\Http\Controllers\Tax\RevenueCollectionController::class);
+        Route::patch('revenue-collections/{revenueCollection}/mark-paid', [\App\Http\Controllers\Tax\RevenueCollectionController::class, 'markAsPaid'])->name('revenue-collections.mark-paid');
+        Route::patch('revenue-collections/{revenueCollection}/mark-overdue', [\App\Http\Controllers\Tax\RevenueCollectionController::class, 'markAsOverdue'])->name('revenue-collections.mark-overdue');
+        Route::patch('revenue-collections/{revenueCollection}/mark-cancelled', [\App\Http\Controllers\Tax\RevenueCollectionController::class, 'markAsCancelled'])->name('revenue-collections.mark-cancelled');
+        Route::patch('revenue-collections/{revenueCollection}/verify', [\App\Http\Controllers\Tax\RevenueCollectionController::class, 'verify'])->name('revenue-collections.verify');
     });
 });
