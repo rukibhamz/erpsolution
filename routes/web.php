@@ -40,15 +40,19 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('users', UserController::class);
         Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('users.toggle-status');
         
-        // Property Management (to be implemented)
-        Route::get('properties', function () {
-            return view('admin.properties.index');
-        })->name('properties.index');
+        // Property Management
+        Route::resource('properties', \App\Http\Controllers\Property\PropertyController::class);
+        Route::patch('properties/{property}/toggle-status', [\App\Http\Controllers\Property\PropertyController::class, 'toggleStatus'])->name('properties.toggle-status');
+        Route::delete('properties/{property}/remove-image', [\App\Http\Controllers\Property\PropertyController::class, 'removeImage'])->name('properties.remove-image');
         
-        // Tenant Management (to be implemented)
-        Route::get('tenants', function () {
-            return view('admin.tenants.index');
-        })->name('tenants.index');
+        // Tenant Management
+        Route::resource('tenants', \App\Http\Controllers\Property\TenantController::class);
+        Route::patch('tenants/{tenant}/toggle-status', [\App\Http\Controllers\Property\TenantController::class, 'toggleStatus'])->name('tenants.toggle-status');
+        
+        // Lease Management
+        Route::resource('leases', \App\Http\Controllers\Property\LeaseController::class);
+        Route::patch('leases/{lease}/terminate', [\App\Http\Controllers\Property\LeaseController::class, 'terminate'])->name('leases.terminate');
+        Route::patch('leases/{lease}/renew', [\App\Http\Controllers\Property\LeaseController::class, 'renew'])->name('leases.renew');
         
         // Booking Management (to be implemented)
         Route::get('bookings', function () {
