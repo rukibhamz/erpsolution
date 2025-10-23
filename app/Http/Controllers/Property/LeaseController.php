@@ -71,7 +71,7 @@ class LeaseController extends Controller
     {
         $properties = Property::available()->get();
         $tenants = Tenant::active()->get();
-        
+
         // Pre-select property or tenant if provided
         $selectedProperty = $request->property_id ? Property::find($request->property_id) : null;
         $selectedTenant = $request->tenant_id ? Tenant::find($request->tenant_id) : null;
@@ -236,7 +236,7 @@ class LeaseController extends Controller
 
         // Create new lease
         $newLeaseNumber = 'LEASE-' . str_pad(Lease::count() + 1, 6, '0', STR_PAD_LEFT);
-        
+
         $newLease = Lease::create([
             'lease_number' => $newLeaseNumber,
             'property_id' => $lease->property_id,
@@ -277,10 +277,11 @@ class LeaseController extends Controller
                 ->with('error', 'Cannot delete lease with payment records.');
         }
 
+        $property = $lease->property;
         $lease->delete();
 
         // Update property status to available
-        $lease->property->update(['status' => 'available']);
+        $property->update(['status' => 'available']);
 
         activity()
             ->causedBy(auth()->user())

@@ -223,18 +223,23 @@ class EventController extends Controller
      */
     public function toggleStatus(Event $event): RedirectResponse
     {
-        $newStatus = $event->status === 'published' ? 'draft' : 'published';
-        $event->update(['status' => $newStatus]);
+        $newStatus = match ($event->status) {
+            'draft' => 'published',
+            'published' => 'completed',
+            'completed' => 'draft',
+            'cancelled' => 'draft',
+            default => 'draft',
+        };
 
-        $status = $newStatus === 'published' ? 'published' : 'unpublished';
+        $event->update(['status' => $newStatus]);
 
         activity()
             ->causedBy(auth()->user())
             ->performedOn($event)
-            ->log("Event {$status}");
+            ->log("Event status changed to {$newStatus}");
 
         return redirect()->route('admin.events.index')
-            ->with('success', "Event {$status} successfully.");
+            ->with('success', "Event status updated to {$newStatus}.");
     }
 
     /**
@@ -245,21 +250,24 @@ class EventController extends Controller
         $imageIndex = $request->image_index;
         $images = $event->images ?? [];
 
-        if (isset($images[$imageIndex])) {
-            // Delete file from storage
-            Storage::disk('public')->delete($images[$imageIndex]);
-            
-            // Remove from array
-            unset($images[$imageIndex]);
-            $images = array_values($images); // Re-index array
-            
-            $event->update(['images' => $images]);
-
-            activity()
-                ->causedBy(auth()->user())
-                ->performedOn($event)
-                ->log('Event image removed');
+        if (!isset($images[$imageIndex])) {
+            return redirect()->back()
+                ->with('error', 'Invalid image index provided.');
         }
+
+        // Delete file from storage
+        Storage::disk('public')->delete($images[$imageIndex]);
+
+        // Remove from array
+        unset($images[$imageIndex]);
+        $images = array_values($images); // Re-index array
+
+        $event->update(['images' => $images]);
+
+        activity()
+            ->causedBy(auth()->user())
+            ->performedOn($event)
+            ->log('Event image removed');
 
         return redirect()->back()
             ->with('success', 'Image removed successfully.');

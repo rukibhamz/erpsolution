@@ -8,6 +8,7 @@ use App\Models\Account;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Str;
 
 class TransactionController extends Controller
 {
@@ -64,7 +65,7 @@ class TransactionController extends Controller
     {
         $accounts = Account::active()->get();
         $selectedAccount = $request->account_id ? Account::find($request->account_id) : null;
-        
+
         return view('accounting.transactions.create', compact('accounts', 'selectedAccount'));
     }
 
@@ -86,8 +87,8 @@ class TransactionController extends Controller
             'notes' => 'nullable|string|max:1000',
         ]);
 
-        // Generate transaction reference
-        $transactionReference = 'TXN-' . str_pad(Transaction::count() + 1, 6, '0', STR_PAD_LEFT);
+        // Generate a more robust transaction reference
+        $transactionReference = 'TXN-' . now()->format('YmdHis') . '-' . Str::random(6);
 
         $transaction = Transaction::create([
             'transaction_reference' => $transactionReference,
