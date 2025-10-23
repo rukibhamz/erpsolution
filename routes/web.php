@@ -71,9 +71,19 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('payments/{payment}/mark-completed', [\App\Http\Controllers\Booking\PaymentController::class, 'markCompleted'])->name('payments.mark-completed');
         Route::patch('payments/{payment}/mark-failed', [\App\Http\Controllers\Booking\PaymentController::class, 'markFailed'])->name('payments.mark-failed');
         
-        // Accounting (to be implemented)
-        Route::get('accounting', function () {
-            return view('admin.accounting.index');
-        })->name('accounting.index');
+        // Accounting System
+        Route::resource('accounts', \App\Http\Controllers\Accounting\AccountController::class);
+        Route::patch('accounts/{account}/toggle-status', [\App\Http\Controllers\Accounting\AccountController::class, 'toggleStatus'])->name('accounts.toggle-status');
+        Route::patch('accounts/{account}/update-balance', [\App\Http\Controllers\Accounting\AccountController::class, 'updateBalance'])->name('accounts.update-balance');
+        
+        Route::resource('transactions', \App\Http\Controllers\Accounting\TransactionController::class);
+        Route::patch('transactions/{transaction}/approve', [\App\Http\Controllers\Accounting\TransactionController::class, 'approve'])->name('transactions.approve');
+        Route::patch('transactions/{transaction}/reject', [\App\Http\Controllers\Accounting\TransactionController::class, 'reject'])->name('transactions.reject');
+        Route::patch('transactions/{transaction}/cancel', [\App\Http\Controllers\Accounting\TransactionController::class, 'cancel'])->name('transactions.cancel');
+        
+        Route::resource('journal-entries', \App\Http\Controllers\Accounting\JournalEntryController::class);
+        Route::patch('journal-entries/{journalEntry}/approve', [\App\Http\Controllers\Accounting\JournalEntryController::class, 'approve'])->name('journal-entries.approve');
+        Route::patch('journal-entries/{journalEntry}/reject', [\App\Http\Controllers\Accounting\JournalEntryController::class, 'reject'])->name('journal-entries.reject');
+        Route::patch('journal-entries/{journalEntry}/cancel', [\App\Http\Controllers\Accounting\JournalEntryController::class, 'cancel'])->name('journal-entries.cancel');
     });
 });
