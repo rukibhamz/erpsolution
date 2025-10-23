@@ -231,6 +231,7 @@ class PropertyController extends Controller
 
     /**
      * Remove image from property.
+     * BUG FIX: Added proper validation and error handling for image removal
      */
     public function removeImage(Property $property, Request $request): RedirectResponse
     {

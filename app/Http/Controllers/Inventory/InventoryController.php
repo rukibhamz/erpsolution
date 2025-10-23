@@ -23,21 +23,15 @@ class InventoryController extends Controller
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('item_code', 'like', "%{$search}%")
-                  ->orWhere('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
-                  ->orWhere('supplier', 'like', "%{$search}%");
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('sku', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
         // Filter by category
         if ($request->filled('category_id')) {
             $query->where('category_id', $request->category_id);
-        }
-
-        // Filter by status
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
         }
 
         // Filter by stock level
@@ -50,12 +44,17 @@ class InventoryController extends Controller
                     $query->where('current_stock', 0);
                     break;
                 case 'needs_reorder':
-                    $query->where('current_stock', '<=', DB::raw('reorder_point'));
+                    $query->where('current_stock', '<=', DB::raw('reorder_level'));
                     break;
             }
         }
 
-        $inventoryItems = $query->orderBy('name')->paginate(15);
+        // Filter by status
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $inventoryItems = $query->latest()->paginate(15);
         $categories = InventoryCategory::active()->get();
 
         return view('inventory.items.index', compact('inventoryItems', 'categories'));
@@ -76,41 +75,25 @@ class InventoryController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'item_code' => 'required|string|max:50|unique:inventory_items,item_code',
             'name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:1000',
+            'sku' => 'required|string|max:100|unique:inventory_items',
+            'description' => 'nullable|string',
             'category_id' => 'required|exists:inventory_categories,id',
-            'unit_of_measure' => 'required|string|max:50',
-            'purchase_price' => 'required|numeric|min:0',
-            'selling_price' => 'required|numeric|min:0',
+            'unit_price' => 'required|numeric|min:0',
             'current_stock' => 'required|integer|min:0',
             'minimum_stock' => 'required|integer|min:0',
-            'maximum_stock' => 'required|integer|min:0',
-            'reorder_point' => 'required|integer|min:0',
+            'reorder_level' => 'required|integer|min:0',
             'supplier' => 'nullable|string|max:255',
+            'supplier_contact' => 'nullable|string|max:255',
             'location' => 'nullable|string|max:255',
+            'status' => 'required|in:active,inactive,discontinued',
             'is_active' => 'boolean',
         ]);
 
-        $inventoryItem = InventoryItem::create([
-            'item_code' => $request->item_code,
-            'name' => $request->name,
-            'description' => $request->description,
-            'category_id' => $request->category_id,
-            'unit_of_measure' => $request->unit_of_measure,
-            'purchase_price' => $request->purchase_price,
-            'selling_price' => $request->selling_price,
-            'current_stock' => $request->current_stock,
-            'minimum_stock' => $request->minimum_stock,
-            'maximum_stock' => $request->maximum_stock,
-            'reorder_point' => $request->reorder_point,
-            'supplier' => $request->supplier,
-            'location' => $request->location,
-            'is_active' => $request->boolean('is_active', true),
-        ]);
+        $inventoryData = $request->except(['is_active']);
+        $inventoryData['is_active'] = $request->boolean('is_active', true);
 
-        // Update status based on stock level
-        $inventoryItem->updateStatus();
+        $inventoryItem = InventoryItem::create($inventoryData);
 
         activity()
             ->causedBy(auth()->user())
@@ -126,7 +109,7 @@ class InventoryController extends Controller
      */
     public function show(InventoryItem $inventoryItem): View
     {
-        $inventoryItem->load(['category', 'stockMovements', 'repairs', 'maintenanceLogs']);
+        $inventoryItem->load(['category', 'stockMovements']);
         return view('inventory.items.show', compact('inventoryItem'));
     }
 
@@ -145,39 +128,25 @@ class InventoryController extends Controller
     public function update(Request $request, InventoryItem $inventoryItem): RedirectResponse
     {
         $request->validate([
-            'item_code' => 'required|string|max:50|unique:inventory_items,item_code,' . $inventoryItem->id,
             'name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:1000',
+            'sku' => 'required|string|max:100|unique:inventory_items,sku,' . $inventoryItem->id,
+            'description' => 'nullable|string',
             'category_id' => 'required|exists:inventory_categories,id',
-            'unit_of_measure' => 'required|string|max:50',
-            'purchase_price' => 'required|numeric|min:0',
-            'selling_price' => 'required|numeric|min:0',
+            'unit_price' => 'required|numeric|min:0',
+            'current_stock' => 'required|integer|min:0',
             'minimum_stock' => 'required|integer|min:0',
-            'maximum_stock' => 'required|integer|min:0',
-            'reorder_point' => 'required|integer|min:0',
+            'reorder_level' => 'required|integer|min:0',
             'supplier' => 'nullable|string|max:255',
+            'supplier_contact' => 'nullable|string|max:255',
             'location' => 'nullable|string|max:255',
+            'status' => 'required|in:active,inactive,discontinued',
             'is_active' => 'boolean',
         ]);
 
-        $inventoryItem->update([
-            'item_code' => $request->item_code,
-            'name' => $request->name,
-            'description' => $request->description,
-            'category_id' => $request->category_id,
-            'unit_of_measure' => $request->unit_of_measure,
-            'purchase_price' => $request->purchase_price,
-            'selling_price' => $request->selling_price,
-            'minimum_stock' => $request->minimum_stock,
-            'maximum_stock' => $request->maximum_stock,
-            'reorder_point' => $request->reorder_point,
-            'supplier' => $request->supplier,
-            'location' => $request->location,
-            'is_active' => $request->boolean('is_active', true),
-        ]);
+        $inventoryData = $request->except(['is_active']);
+        $inventoryData['is_active'] = $request->boolean('is_active', true);
 
-        // Update status based on stock level
-        $inventoryItem->updateStatus();
+        $inventoryItem->update($inventoryData);
 
         activity()
             ->causedBy(auth()->user())
@@ -196,7 +165,7 @@ class InventoryController extends Controller
         // Check if item has stock movements
         if ($inventoryItem->stockMovements()->exists()) {
             return redirect()->route('admin.inventory.index')
-                ->with('error', 'Cannot delete item with existing stock movements.');
+                ->with('error', 'Cannot delete inventory item with stock movement records.');
         }
 
         $inventoryItem->delete();
@@ -211,7 +180,7 @@ class InventoryController extends Controller
     }
 
     /**
-     * Toggle item status.
+     * Toggle inventory item active status.
      */
     public function toggleStatus(InventoryItem $inventoryItem): RedirectResponse
     {
@@ -229,49 +198,46 @@ class InventoryController extends Controller
     }
 
     /**
-     * Add stock to the item.
+     * Add stock to inventory item.
      */
     public function addStock(Request $request, InventoryItem $inventoryItem): RedirectResponse
     {
         $request->validate([
             'quantity' => 'required|integer|min:1',
             'reason' => 'required|string|max:255',
+            'notes' => 'nullable|string|max:500',
         ]);
 
-        $inventoryItem->addStock($request->quantity, $request->reason);
+        $inventoryItem->addStock($request->quantity, $request->reason, $request->notes);
 
         activity()
             ->causedBy(auth()->user())
             ->performedOn($inventoryItem)
-            ->log('Stock added to inventory item');
+            ->log("Added {$request->quantity} units to inventory");
 
         return redirect()->route('admin.inventory.show', $inventoryItem)
             ->with('success', 'Stock added successfully.');
     }
 
     /**
-     * Remove stock from the item.
+     * Remove stock from inventory item.
      */
     public function removeStock(Request $request, InventoryItem $inventoryItem): RedirectResponse
     {
         $request->validate([
-            'quantity' => 'required|integer|min:1',
+            'quantity' => 'required|integer|min:1|max:' . $inventoryItem->current_stock,
             'reason' => 'required|string|max:255',
+            'notes' => 'nullable|string|max:500',
         ]);
 
-        try {
-            $inventoryItem->removeStock($request->quantity, $request->reason);
+        $inventoryItem->removeStock($request->quantity, $request->reason, $request->notes);
 
-            activity()
-                ->causedBy(auth()->user())
-                ->performedOn($inventoryItem)
-                ->log('Stock removed from inventory item');
+        activity()
+            ->causedBy(auth()->user())
+            ->performedOn($inventoryItem)
+            ->log("Removed {$request->quantity} units from inventory");
 
-            return redirect()->route('admin.inventory.show', $inventoryItem)
-                ->with('success', 'Stock removed successfully.');
-        } catch (\Exception $e) {
-            return redirect()->route('admin.inventory.show', $inventoryItem)
-                ->with('error', $e->getMessage());
-        }
+        return redirect()->route('admin.inventory.show', $inventoryItem)
+            ->with('success', 'Stock removed successfully.');
     }
 }

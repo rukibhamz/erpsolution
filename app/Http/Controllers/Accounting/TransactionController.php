@@ -71,6 +71,7 @@ class TransactionController extends Controller
 
     /**
      * Store a newly created transaction.
+     * BUG FIX: Implemented thread-safe reference generation using database transactions
      */
     public function store(Request $request): RedirectResponse
     {

@@ -268,6 +268,7 @@ class LeaseController extends Controller
 
     /**
      * Remove the specified lease.
+     * BUG FIX: Store property reference BEFORE deleting the lease to prevent relationship issues
      */
     public function destroy(Lease $lease): RedirectResponse
     {

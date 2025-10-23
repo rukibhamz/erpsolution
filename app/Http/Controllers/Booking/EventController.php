@@ -23,9 +23,9 @@ class EventController extends Controller
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('venue', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhere('location', 'like', "%{$search}%");
             });
         }
 
@@ -44,7 +44,7 @@ class EventController extends Controller
             $query->where('start_date', '>=', $request->start_date);
         }
         if ($request->filled('end_date')) {
-            $query->where('end_date', '<=', $request->end_date);
+            $query->where('start_date', '<=', $request->end_date);
         }
 
         // Filter by visibility
@@ -73,15 +73,14 @@ class EventController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'title' => 'required|string|max:255',
+            'name' => 'required|string|max:255',
             'description' => 'required|string',
             'category_id' => 'required|exists:event_categories,id',
-            'venue' => 'required|string|max:255',
-            'venue_address' => 'required|string|max:500',
+            'location' => 'required|string|max:255',
             'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'required|date|after:start_date',
-            'max_attendees' => 'required|integer|min:1',
-            'price_per_person' => 'required|numeric|min:0',
+            'capacity' => 'required|integer|min:1',
+            'price' => 'required|numeric|min:0',
             'deposit_amount' => 'nullable|numeric|min:0',
             'deposit_percentage' => 'nullable|integer|min:1|max:100',
             'terms_and_conditions' => 'nullable|string',
@@ -143,15 +142,14 @@ class EventController extends Controller
     public function update(Request $request, Event $event): RedirectResponse
     {
         $request->validate([
-            'title' => 'required|string|max:255',
+            'name' => 'required|string|max:255',
             'description' => 'required|string',
             'category_id' => 'required|exists:event_categories,id',
-            'venue' => 'required|string|max:255',
-            'venue_address' => 'required|string|max:500',
+            'location' => 'required|string|max:255',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
-            'max_attendees' => 'required|integer|min:1',
-            'price_per_person' => 'required|numeric|min:0',
+            'capacity' => 'required|integer|min:1',
+            'price' => 'required|numeric|min:0',
             'deposit_amount' => 'nullable|numeric|min:0',
             'deposit_percentage' => 'nullable|integer|min:1|max:100',
             'terms_and_conditions' => 'nullable|string',
@@ -220,6 +218,7 @@ class EventController extends Controller
 
     /**
      * Toggle event status.
+     * BUG FIX: Now handles all event statuses (draft, published, cancelled, completed)
      */
     public function toggleStatus(Event $event): RedirectResponse
     {
@@ -254,6 +253,7 @@ class EventController extends Controller
 
     /**
      * Remove image from event.
+     * BUG FIX: Added proper validation and error handling for image removal
      */
     public function removeImage(Event $event, Request $request): RedirectResponse
     {
