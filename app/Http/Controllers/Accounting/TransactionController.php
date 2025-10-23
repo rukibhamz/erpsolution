@@ -8,6 +8,7 @@ use App\Models\Account;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 
 class TransactionController extends Controller
 {
@@ -86,24 +87,31 @@ class TransactionController extends Controller
             'notes' => 'nullable|string|max:1000',
         ]);
 
-        // Generate transaction reference
-        $transactionReference = 'TXN-' . str_pad(Transaction::count() + 1, 6, '0', STR_PAD_LEFT);
+        // Generate unique transaction reference using database transaction
+        $transaction = DB::transaction(function () use ($request) {
+            // Get the next sequence number atomically
+            $nextNumber = DB::table('transactions')
+                ->lockForUpdate()
+                ->max(DB::raw('CAST(SUBSTRING(transaction_reference, 5) AS UNSIGNED)')) + 1;
+            
+            $transactionReference = 'TXN-' . str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
 
-        $transaction = Transaction::create([
-            'transaction_reference' => $transactionReference,
-            'account_id' => $request->account_id,
-            'transaction_type' => $request->transaction_type,
-            'amount' => $request->amount,
-            'description' => $request->description,
-            'transaction_date' => $request->transaction_date,
-            'category' => $request->category,
-            'subcategory' => $request->subcategory,
-            'payment_method' => $request->payment_method,
-            'reference_number' => $request->reference_number,
-            'notes' => $request->notes,
-            'created_by' => auth()->id(),
-            'status' => 'pending',
-        ]);
+            return Transaction::create([
+                'transaction_reference' => $transactionReference,
+                'account_id' => $request->account_id,
+                'transaction_type' => $request->transaction_type,
+                'amount' => $request->amount,
+                'description' => $request->description,
+                'transaction_date' => $request->transaction_date,
+                'category' => $request->category,
+                'subcategory' => $request->subcategory,
+                'payment_method' => $request->payment_method,
+                'reference_number' => $request->reference_number,
+                'notes' => $request->notes,
+                'created_by' => auth()->id(),
+                'status' => 'pending',
+            ]);
+        });
 
         activity()
             ->causedBy(auth()->user())
