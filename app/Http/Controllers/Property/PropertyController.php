@@ -234,24 +234,31 @@ class PropertyController extends Controller
      */
     public function removeImage(Property $property, Request $request): RedirectResponse
     {
+        $request->validate([
+            'image_index' => 'required|integer|min:0'
+        ]);
+
         $imageIndex = $request->image_index;
         $images = $property->images ?? [];
 
-        if (isset($images[$imageIndex])) {
-            // Delete file from storage
-            Storage::disk('public')->delete($images[$imageIndex]);
-            
-            // Remove from array
-            unset($images[$imageIndex]);
-            $images = array_values($images); // Re-index array
-            
-            $property->update(['images' => $images]);
-
-            activity()
-                ->causedBy(auth()->user())
-                ->performedOn($property)
-                ->log('Property image removed');
+        if (!isset($images[$imageIndex])) {
+            return redirect()->back()
+                ->with('error', 'Image not found. It may have already been removed.');
         }
+
+        // Delete file from storage
+        Storage::disk('public')->delete($images[$imageIndex]);
+        
+        // Remove from array
+        unset($images[$imageIndex]);
+        $images = array_values($images); // Re-index array
+        
+        $property->update(['images' => $images]);
+
+        activity()
+            ->causedBy(auth()->user())
+            ->performedOn($property)
+            ->log('Property image removed');
 
         return redirect()->back()
             ->with('success', 'Image removed successfully.');

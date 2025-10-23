@@ -277,10 +277,14 @@ class LeaseController extends Controller
                 ->with('error', 'Cannot delete lease with payment records.');
         }
 
+        // Store property reference BEFORE deleting the lease
+        $property = $lease->property;
+        $propertyId = $property->id;
+
         $lease->delete();
 
-        // Update property status to available
-        $lease->property->update(['status' => 'available']);
+        // Update property status to available using the stored property reference
+        $property->update(['status' => 'available']);
 
         activity()
             ->causedBy(auth()->user())
