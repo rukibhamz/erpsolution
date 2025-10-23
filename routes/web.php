@@ -85,5 +85,18 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('journal-entries/{journalEntry}/approve', [\App\Http\Controllers\Accounting\JournalEntryController::class, 'approve'])->name('journal-entries.approve');
         Route::patch('journal-entries/{journalEntry}/reject', [\App\Http\Controllers\Accounting\JournalEntryController::class, 'reject'])->name('journal-entries.reject');
         Route::patch('journal-entries/{journalEntry}/cancel', [\App\Http\Controllers\Accounting\JournalEntryController::class, 'cancel'])->name('journal-entries.cancel');
+        
+        // Inventory Management
+        Route::resource('inventory', \App\Http\Controllers\Inventory\InventoryController::class);
+        Route::patch('inventory/{inventoryItem}/toggle-status', [\App\Http\Controllers\Inventory\InventoryController::class, 'toggleStatus'])->name('inventory.toggle-status');
+        Route::post('inventory/{inventoryItem}/add-stock', [\App\Http\Controllers\Inventory\InventoryController::class, 'addStock'])->name('inventory.add-stock');
+        Route::post('inventory/{inventoryItem}/remove-stock', [\App\Http\Controllers\Inventory\InventoryController::class, 'removeStock'])->name('inventory.remove-stock');
+        
+        Route::resource('repairs', \App\Http\Controllers\Inventory\RepairController::class);
+        Route::patch('repairs/{repair}/mark-in-progress', [\App\Http\Controllers\Inventory\RepairController::class, 'markInProgress'])->name('repairs.mark-in-progress');
+        Route::patch('repairs/{repair}/mark-completed', [\App\Http\Controllers\Inventory\RepairController::class, 'markCompleted'])->name('repairs.mark-completed');
+        Route::patch('repairs/{repair}/mark-cancelled', [\App\Http\Controllers\Inventory\RepairController::class, 'markCancelled'])->name('repairs.mark-cancelled');
+        
+        Route::resource('maintenance', \App\Http\Controllers\Inventory\MaintenanceController::class);
     });
 });
