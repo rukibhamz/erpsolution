@@ -78,7 +78,7 @@ class Property extends Model
      * Get the current lease.
      * BUSINESS LOGIC FIX: Properly check for active leases
      */
-    public function currentLease()
+    public function currentLease(): ?\App\Models\Lease
     {
         return $this->leases()
             ->where('status', 'active')
@@ -136,7 +136,7 @@ class Property extends Model
     /**
      * Scope for available properties.
      */
-    public function scopeAvailable($query)
+    public function scopeAvailable($query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('status', 'available')
             ->where('is_active', true)
@@ -150,7 +150,7 @@ class Property extends Model
     /**
      * Scope for occupied properties.
      */
-    public function scopeOccupied($query)
+    public function scopeOccupied($query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('status', 'occupied')
             ->orWhereHas('leases', function ($q) {
@@ -163,7 +163,7 @@ class Property extends Model
     /**
      * Scope for active properties.
      */
-    public function scopeActive($query)
+    public function scopeActive($query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('is_active', true);
     }
@@ -173,7 +173,7 @@ class Property extends Model
      */
     public function getFormattedRentAmountAttribute(): string
     {
-        return '₦' . number_format($this->rent_amount, 2);
+        return '₦' . number_format((float) $this->rent_amount, 2);
     }
 
     /**
@@ -181,6 +181,6 @@ class Property extends Model
      */
     public function getFormattedDepositAmountAttribute(): string
     {
-        return '₦' . number_format($this->deposit_amount, 2);
+        return '₦' . number_format((float) $this->deposit_amount, 2);
     }
 }

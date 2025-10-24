@@ -40,8 +40,12 @@ Route::middleware('auth')->group(function () {
             'destroy' => 'admin.properties.destroy',
         ]);
         
-        Route::patch('admin/properties/{property}/toggle-status', [PropertyController::class, 'toggleStatus'])->name('admin.properties.toggle-status');
-        Route::delete('admin/properties/{property}/remove-image', [PropertyController::class, 'removeImage'])->name('admin.properties.remove-image');
+        // SECURITY FIX: Add CSRF protection to AJAX routes
+        Route::middleware('csrf')->group(function () {
+            Route::patch('admin/properties/{property}/toggle-status', [PropertyController::class, 'toggleStatus'])->name('admin.properties.toggle-status');
+            Route::delete('admin/properties/{property}/remove-image', [PropertyController::class, 'removeImage'])->name('admin.properties.remove-image');
+            Route::post('admin/properties/fix-status-inconsistencies', [PropertyController::class, 'fixStatusInconsistencies'])->name('admin.properties.fix-status-inconsistencies');
+        });
     });
 
     // Transaction Management Routes
@@ -56,9 +60,12 @@ Route::middleware('auth')->group(function () {
             'destroy' => 'admin.transactions.destroy',
         ]);
         
-        Route::patch('admin/transactions/{transaction}/approve', [TransactionController::class, 'approve'])->name('admin.transactions.approve');
-        Route::patch('admin/transactions/{transaction}/reject', [TransactionController::class, 'reject'])->name('admin.transactions.reject');
-        Route::patch('admin/transactions/{transaction}/cancel', [TransactionController::class, 'cancel'])->name('admin.transactions.cancel');
+        // SECURITY FIX: Add CSRF protection to transaction action routes
+        Route::middleware('csrf')->group(function () {
+            Route::patch('admin/transactions/{transaction}/approve', [TransactionController::class, 'approve'])->name('admin.transactions.approve');
+            Route::patch('admin/transactions/{transaction}/reject', [TransactionController::class, 'reject'])->name('admin.transactions.reject');
+            Route::patch('admin/transactions/{transaction}/cancel', [TransactionController::class, 'cancel'])->name('admin.transactions.cancel');
+        });
     });
 
     // User Management Routes
@@ -78,7 +85,7 @@ Route::middleware('auth')->group(function () {
 // Authentication Routes
 Route::middleware('guest')->group(function () {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
-    Route::post('login', [AuthenticatedSessionController::class, 'store']);
+    Route::post('login', [AuthenticatedSessionController::class, 'store'])->name('login.store');
 });
 
 Route::middleware('auth')->group(function () {

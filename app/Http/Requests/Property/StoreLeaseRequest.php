@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Property;
 
+use App\Rules\NoLeaseOverlap;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -27,7 +28,8 @@ class StoreLeaseRequest extends FormRequest
             'tenant_phone' => 'required|string|max:20|regex:/^[\+]?[0-9\s\-\(\)]+$/',
             'tenant_address' => 'required|string|max:500',
             'start_date' => 'required|date|after_or_equal:today',
-            'end_date' => 'required|date|after:start_date',
+            // BUSINESS LOGIC FIX: Add lease overlap validation
+            'end_date' => ['required', 'date', 'after:start_date', new NoLeaseOverlap($this->input('property_id'))],
             'monthly_rent' => 'required|numeric|min:0.01|max:999999.99',
             'security_deposit' => 'required|numeric|min:0|max:999999.99',
             'late_fee' => 'nullable|numeric|min:0|max:99999.99',

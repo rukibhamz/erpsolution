@@ -122,38 +122,64 @@ class PropertyController extends Controller
      */
     public function edit(Property $property): View
     {
+        // SECURITY FIX: Add missing authorization check
+        $this->authorize('update', $property);
         $propertyTypes = PropertyType::active()->get();
         return view('admin.properties.edit', compact('property', 'propertyTypes'));
     }
 
     /**
-     * Update the specified resource in storage.
+     * ERROR HANDLING FIX: Update the specified resource in storage with comprehensive error handling
      */
     public function update(UpdatePropertyRequest $request, Property $property): RedirectResponse
     {
-        $validated = $request->validated();
+        try {
+            $this->authorize('update', $property);
+            $validated = $request->validated();
 
-        // Handle new image uploads
-        $currentImages = $property->images ?? [];
-        if ($request->hasFile('images')) {
-            foreach ($request->file('images') as $image) {
-                $path = $image->store('properties', 'public');
-                $currentImages[] = $path;
+            // Handle new image uploads with error handling
+            $currentImages = $property->images ?? [];
+            if ($request->hasFile('images')) {
+                try {
+                    foreach ($request->file('images') as $image) {
+                        $path = $image->store('properties', 'public');
+                        $currentImages[] = $path;
+                    }
+                } catch (Exception $e) {
+                    throw new BusinessLogicException(
+                        'Failed to upload images. Please try again.',
+                        'IMAGE_UPLOAD_ERROR',
+                        ['error' => $e->getMessage()]
+                    );
+                }
             }
+
+            $property->update([
+                ...$validated,
+                'images' => $currentImages,
+            ]);
+
+            activity()
+                ->causedBy(auth()->user())
+                ->performedOn($property)
+                ->log('Property updated');
+
+            return redirect()->route('admin.properties.index')
+                ->with('success', 'Property updated successfully.');
+
+        } catch (BusinessLogicException $e) {
+            return redirect()->back()
+                ->with('error', $e->getMessage())
+                ->with('error_code', $e->getErrorCode())
+                ->withInput();
+        } catch (Exception $e) {
+            $errorService = new ErrorHandlingService();
+            $errorService->handleError($e, 'Property Update');
+            
+            return redirect()->back()
+                ->with('error', 'An error occurred while updating the property. Please try again.')
+                ->withInput();
         }
-
-        $property->update([
-            ...$validated,
-            'images' => $currentImages,
-        ]);
-
-        activity()
-            ->causedBy(auth()->user())
-            ->performedOn($property)
-            ->log('Property updated');
-
-        return redirect()->route('admin.properties.index')
-            ->with('success', 'Property updated successfully.');
     }
 
     /**

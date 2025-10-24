@@ -26,7 +26,8 @@ class LoginRequest extends FormRequest
     {
         return [
             'email' => ['required', 'string', 'email'],
-            'password' => ['required', 'string'],
+            // SECURITY FIX: Add basic password validation
+            'password' => ['required', 'string', 'min:6'],
         ];
     }
 

@@ -4,7 +4,7 @@ namespace App\Http\Requests\Property;
 
 use App\Rules\ValidNigerianPhone;
 use App\Rules\ValidNigerianAmount;
-use App\Rules\NoOverlappingLease;
+use App\Rules\NoLeaseOverlap;
 use App\Rules\ValidDateRange;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -48,7 +48,9 @@ class UpdateLeaseRequest extends FormRequest
                 'required',
                 'date',
                 'after:start_date',
-                new ValidDateRange($this->start_date, now()->addYears(10)->format('Y-m-d'))
+                new ValidDateRange($this->start_date, now()->addYears(10)->format('Y-m-d')),
+                // BUSINESS LOGIC FIX: Add lease overlap validation for updates
+                new NoLeaseOverlap($this->input('property_id'), $lease->id)
             ],
             'monthly_rent' => ['required', new ValidNigerianAmount],
             'security_deposit' => ['required', new ValidNigerianAmount],

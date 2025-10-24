@@ -36,7 +36,8 @@ class StorePropertyRequest extends FormRequest
             'area_sqft' => 'nullable|numeric|min:0|max:999999.99',
             'amenities' => 'nullable|array|max:20',
             'amenities.*' => 'string|max:100',
-            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120|dimensions:max_width=4000,max_height=4000',
+            // SECURITY FIX: Strengthened file upload validation
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg|max:2048|dimensions:min_width=100,min_height=100,max_width=2000,max_height=2000',
         ];
     }
 
@@ -67,9 +68,9 @@ class StorePropertyRequest extends FormRequest
             'amenities.max' => 'Maximum 20 amenities allowed.',
             'amenities.*.max' => 'Each amenity must not exceed 100 characters.',
             'images.*.image' => 'Uploaded file must be an image.',
-            'images.*.mimes' => 'Image must be a JPEG, PNG, JPG, GIF, or WebP file.',
-            'images.*.max' => 'Image size cannot exceed 5MB.',
-            'images.*.dimensions' => 'Image dimensions cannot exceed 4000x4000 pixels.',
+            'images.*.mimes' => 'Image must be a JPEG, PNG, or JPG file.',
+            'images.*.max' => 'Image size cannot exceed 2MB.',
+            'images.*.dimensions' => 'Image dimensions must be between 100x100 and 2000x2000 pixels.',
         ];
     }
 
