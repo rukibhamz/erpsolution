@@ -19,7 +19,7 @@ class AccountController extends Controller
 
         // Search functionality
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('account_code', 'like', "%{$search}%")
                   ->orWhere('account_name', 'like', "%{$search}%")
@@ -29,12 +29,12 @@ class AccountController extends Controller
 
         // Filter by account type
         if ($request->filled('account_type')) {
-            $query->where('account_type', $request->account_type);
+            $query->where('account_type', $request->input('account_type'));
         }
 
         // Filter by account category
         if ($request->filled('account_category')) {
-            $query->where('account_category', $request->account_category);
+            $query->where('account_category', $request->input('account_category'));
         }
 
         // Filter by status
@@ -71,13 +71,13 @@ class AccountController extends Controller
         ]);
 
         $account = Account::create([
-            'account_code' => $request->account_code,
-            'account_name' => $request->account_name,
-            'description' => $request->description,
-            'account_type' => $request->account_type,
-            'account_category' => $request->account_category,
-            'opening_balance' => $request->opening_balance,
-            'current_balance' => $request->opening_balance,
+            'account_code' => $request->input('account_code'),
+            'account_name' => $request->input('account_name'),
+            'description' => $request->input('description'),
+            'account_type' => $request->input('account_type'),
+            'account_category' => $request->input('account_category'),
+            'opening_balance' => $request->input('opening_balance'),
+            'current_balance' => $request->input('opening_balance'),
             'is_active' => $request->boolean('is_active', true),
             'is_system_account' => false,
         ]);

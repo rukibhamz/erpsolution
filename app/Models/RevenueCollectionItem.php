@@ -55,7 +55,7 @@ class RevenueCollectionItem extends Model
      */
     public function getFormattedUnitPriceAttribute(): string
     {
-        return '₦' . number_format($this->unit_price, 2);
+        return '₦' . number_format((float) $this->unit_price, 2);
     }
 
     /**
@@ -63,7 +63,7 @@ class RevenueCollectionItem extends Model
      */
     public function getFormattedTotalAmountAttribute(): string
     {
-        return '₦' . number_format($this->total_amount, 2);
+        return '₦' . number_format((float) $this->total_amount, 2);
     }
 
     /**
@@ -71,7 +71,7 @@ class RevenueCollectionItem extends Model
      */
     public function getFormattedTaxAmountAttribute(): string
     {
-        return '₦' . number_format($this->tax_amount, 2);
+        return '₦' . number_format((float) $this->tax_amount, 2);
     }
 
     /**
@@ -79,7 +79,7 @@ class RevenueCollectionItem extends Model
      */
     public function getFormattedNetAmountAttribute(): string
     {
-        return '₦' . number_format($this->net_amount, 2);
+        return '₦' . number_format((float) $this->net_amount, 2);
     }
 
     /**

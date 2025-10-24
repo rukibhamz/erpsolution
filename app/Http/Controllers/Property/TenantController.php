@@ -19,7 +19,7 @@ class TenantController extends Controller
 
         // Search functionality
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('first_name', 'like', "%{$search}%")
                   ->orWhere('last_name', 'like', "%{$search}%")
@@ -30,9 +30,9 @@ class TenantController extends Controller
 
         // Filter by status
         if ($request->filled('status')) {
-            if ($request->status === 'active') {
+            if ($request->input('status') === 'active') {
                 $query->withActiveLeases();
-            } elseif ($request->status === 'inactive') {
+            } elseif ($request->input('status') === 'inactive') {
                 $query->whereDoesntHave('leases', function ($q) {
                     $q->where('status', 'active')
                       ->where('start_date', '<=', now())
@@ -43,7 +43,7 @@ class TenantController extends Controller
 
         // Filter by gender
         if ($request->filled('gender')) {
-            $query->where('gender', $request->gender);
+            $query->where('gender', $request->input('gender'));
         }
 
         $tenants = $query->latest()->paginate(15);

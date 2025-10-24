@@ -100,10 +100,10 @@ class Application extends Container implements ApplicationContract
         if (count($environments) > 0) {
             $patterns = is_array($environments[0]) ? $environments[0] : $environments;
 
-            return Str::is($patterns, $this['env']);
+            return Str::is($patterns, $this->getConfig('env'));
         }
 
-        return $this['env'];
+        return $this->getConfig('env');
     }
 
     public function runningInConsole()
@@ -113,7 +113,7 @@ class Application extends Container implements ApplicationContract
 
     public function runningUnitTests()
     {
-        return $this['env'] === 'testing';
+        return $this->getConfig('env') === 'testing';
     }
 
     public function maintenanceMode()

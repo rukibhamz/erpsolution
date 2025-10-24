@@ -127,7 +127,7 @@ class Booking extends Model
      */
     public function getFormattedTotalAmountAttribute(): string
     {
-        return '₦' . number_format($this->total_amount, 2);
+        return '₦' . number_format((float) $this->total_amount, 2);
     }
 
     /**
@@ -135,7 +135,7 @@ class Booking extends Model
      */
     public function getFormattedPaidAmountAttribute(): string
     {
-        return '₦' . number_format($this->paid_amount, 2);
+        return '₦' . number_format((float) $this->paid_amount, 2);
     }
 
     /**
@@ -143,7 +143,7 @@ class Booking extends Model
      */
     public function getFormattedBalanceAmountAttribute(): string
     {
-        return '₦' . number_format($this->balance_amount, 2);
+        return '₦' . number_format((float) $this->balance_amount, 2);
     }
 
     /**

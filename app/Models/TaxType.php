@@ -109,7 +109,7 @@ class TaxType extends Model
             return $this->rate . '%';
         }
         
-        return '₦' . number_format($this->rate, 2);
+        return '₦' . number_format((float) $this->rate, 2);
     }
 
     /**

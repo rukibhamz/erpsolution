@@ -130,7 +130,7 @@ class Event extends Model
      */
     public function getFormattedPriceAttribute(): string
     {
-        return '₦' . number_format($this->price, 2);
+        return '₦' . number_format((float) $this->price, 2);
     }
 
     /**
@@ -138,7 +138,7 @@ class Event extends Model
      */
     public function getFormattedPartialPaymentAttribute(): string
     {
-        return '₦' . number_format($this->partial_payment_amount, 2);
+        return '₦' . number_format((float) $this->partial_payment_amount, 2);
     }
 
     /**

@@ -132,7 +132,7 @@ class TaxCalculation extends Model
      */
     public function getFormattedBaseAmountAttribute(): string
     {
-        return '₦' . number_format($this->base_amount, 2);
+        return '₦' . number_format((float) $this->base_amount, 2);
     }
 
     /**
@@ -140,7 +140,7 @@ class TaxCalculation extends Model
      */
     public function getFormattedTaxAmountAttribute(): string
     {
-        return '₦' . number_format($this->tax_amount, 2);
+        return '₦' . number_format((float) $this->tax_amount, 2);
     }
 
     /**

@@ -109,7 +109,7 @@ class LeaseManagementService
         $errors = [];
 
         // Validate lease can be terminated
-        if ($lease->status !== 'active') {
+        if ($lease->getAttribute('status') !== 'active') {
             $errors[] = 'Only active leases can be terminated.';
         }
 
@@ -128,13 +128,13 @@ class LeaseManagementService
                 // Update property status to available
                 $lease->property->update(['status' => 'available']);
 
-                Log::info("Lease {$lease->id} terminated");
+                Log::info("Lease {$lease->getKey()} terminated");
             });
 
             return ['success' => true, 'errors' => []];
 
         } catch (\Exception $e) {
-            Log::error("Failed to terminate lease {$lease->id}: " . $e->getMessage());
+            Log::error("Failed to terminate lease {$lease->getKey()}: " . $e->getMessage());
             return ['success' => false, 'errors' => ['Failed to terminate lease: ' . $e->getMessage()]];
         }
     }
@@ -187,9 +187,9 @@ class LeaseManagementService
             'days_remaining' => $daysRemaining,
             'is_expired' => $isExpired,
             'is_expiring_soon' => $isExpiringSoon,
-            'status' => $lease->status,
-            'can_terminate' => $lease->status === 'active',
-            'can_renew' => $lease->status === 'active' && $isExpiringSoon,
+            'status' => $lease->getAttribute('status'),
+            'can_terminate' => $lease->getAttribute('status') === 'active',
+            'can_renew' => $lease->getAttribute('status') === 'active' && $isExpiringSoon,
         ];
     }
 
@@ -201,7 +201,7 @@ class LeaseManagementService
         $errors = [];
 
         // Check if lease can be renewed
-        if ($lease->status !== 'active') {
+        if ($lease->getAttribute('status') !== 'active') {
             $errors[] = 'Only active leases can be renewed.';
         }
 

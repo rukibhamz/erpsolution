@@ -117,7 +117,7 @@ class Account extends Model
      */
     public function getFormattedBalanceAttribute(): string
     {
-        return '₦' . number_format($this->balance, 2);
+        return '₦' . number_format((float) $this->balance, 2);
     }
 
     /**

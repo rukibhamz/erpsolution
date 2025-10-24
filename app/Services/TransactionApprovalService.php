@@ -58,7 +58,7 @@ class TransactionApprovalService
         }
 
         // Check for duplicate transactions
-        $duplicateTransaction = Transaction::where('id', '!=', $transaction->id)
+        $duplicateTransaction = Transaction::where('id', '!=', $transaction->getKey())
             ->where('account_id', $transaction->account_id)
             ->where('amount', $transaction->amount)
             ->where('transaction_date', $transaction->transaction_date)
@@ -88,13 +88,13 @@ class TransactionApprovalService
                 // Update account balance
                 $this->updateAccountBalance($transaction->account);
 
-                Log::info("Transaction {$transaction->id} approved by user {$approver->id}");
+                Log::info("Transaction {$transaction->getKey()} approved by user {$approver->getKey()}");
             });
 
             return ['success' => true, 'errors' => [], 'warnings' => $warnings];
 
         } catch (\Exception $e) {
-            Log::error("Failed to approve transaction {$transaction->id}: " . $e->getMessage());
+            Log::error("Failed to approve transaction {$transaction->getKey()}: " . $e->getMessage());
             return ['success' => false, 'errors' => ['Failed to approve transaction: ' . $e->getMessage()], 'warnings' => $warnings];
         }
     }
@@ -124,11 +124,11 @@ class TransactionApprovalService
                 'notes' => $transaction->notes . ($reason ? "\nRejection reason: " . $reason : ''),
             ]);
 
-            Log::info("Transaction {$transaction->id} rejected by user {$rejector->id}");
+            Log::info("Transaction {$transaction->getKey()} rejected by user {$rejector->getKey()}");
             return ['success' => true, 'errors' => []];
 
         } catch (\Exception $e) {
-            Log::error("Failed to reject transaction {$transaction->id}: " . $e->getMessage());
+            Log::error("Failed to reject transaction {$transaction->getKey()}: " . $e->getMessage());
             return ['success' => false, 'errors' => ['Failed to reject transaction: ' . $e->getMessage()]];
         }
     }
@@ -154,11 +154,11 @@ class TransactionApprovalService
                 'notes' => $transaction->notes . ($reason ? "\nCancellation reason: " . $reason : ''),
             ]);
 
-            Log::info("Transaction {$transaction->id} cancelled by user {$canceller->id}");
+            Log::info("Transaction {$transaction->getKey()} cancelled by user {$canceller->getKey()}");
             return ['success' => true, 'errors' => []];
 
         } catch (\Exception $e) {
-            Log::error("Failed to cancel transaction {$transaction->id}: " . $e->getMessage());
+            Log::error("Failed to cancel transaction {$transaction->getKey()}: " . $e->getMessage());
             return ['success' => false, 'errors' => ['Failed to cancel transaction: ' . $e->getMessage()]];
         }
     }
@@ -168,13 +168,13 @@ class TransactionApprovalService
      */
     public function updateAccountBalance(Account $account): void
     {
-        $balance = Transaction::where('account_id', $account->id)
+        $balance = Transaction::where('account_id', $account->getKey())
             ->where('status', 'approved')
             ->sum(DB::raw('CASE 
                 WHEN transaction_type = "income" THEN amount 
                 WHEN transaction_type = "expense" THEN -amount 
                 WHEN transaction_type = "transfer" THEN 
-                    CASE WHEN account_id = ' . $account->id . ' THEN amount ELSE -amount END
+                    CASE WHEN account_id = ' . $account->getKey() . ' THEN amount ELSE -amount END
                 ELSE 0 
             END'));
 

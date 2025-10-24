@@ -26,13 +26,13 @@ class PropertyStatusService
                 // Property has active lease
                 if ($property->status !== 'occupied') {
                     $property->update(['status' => 'occupied']);
-                    Log::info("Property {$property->id} status updated to occupied due to active lease");
+                    Log::info("Property {$property->getKey()} status updated to occupied due to active lease");
                 }
             } else {
                 // No active lease
                 if ($property->status === 'occupied') {
                     $property->update(['status' => 'available']);
-                    Log::info("Property {$property->id} status updated to available - no active lease");
+                    Log::info("Property {$property->getKey()} status updated to available - no active lease");
                 }
             }
         });

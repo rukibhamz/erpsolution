@@ -151,7 +151,7 @@ class UtilityBill extends Model
      */
     public function getFormattedTotalAmountAttribute(): string
     {
-        return '₦' . number_format($this->total_amount, 2);
+        return '₦' . number_format((float) $this->total_amount, 2);
     }
 
     /**
@@ -159,7 +159,7 @@ class UtilityBill extends Model
      */
     public function getFormattedConsumptionAttribute(): string
     {
-        return number_format($this->consumption, 2) . ' ' . $this->utilityType->unit_of_measure;
+        return number_format((float) $this->consumption, 2) . ' ' . $this->utilityType->unit_of_measure;
     }
 
     /**

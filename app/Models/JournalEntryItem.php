@@ -69,7 +69,7 @@ class JournalEntryItem extends Model
      */
     public function getFormattedDebitAmountAttribute(): string
     {
-        return '₦' . number_format($this->debit_amount, 2);
+        return '₦' . number_format((float) $this->debit_amount, 2);
     }
 
     /**
@@ -77,6 +77,6 @@ class JournalEntryItem extends Model
      */
     public function getFormattedCreditAmountAttribute(): string
     {
-        return '₦' . number_format($this->credit_amount, 2);
+        return '₦' . number_format((float) $this->credit_amount, 2);
     }
 }

@@ -102,7 +102,7 @@ class InventoryItem extends Model
      */
     public function getFormattedUnitPriceAttribute(): string
     {
-        return '₦' . number_format($this->unit_price, 2);
+        return '₦' . number_format((float) $this->unit_price, 2);
     }
 
     /**

@@ -91,7 +91,7 @@ class LeasePayment extends Model
      */
     public function getFormattedAmountAttribute(): string
     {
-        return '₦' . number_format($this->amount, 2);
+        return '₦' . number_format((float) $this->amount, 2);
     }
 
     /**

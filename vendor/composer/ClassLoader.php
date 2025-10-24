@@ -349,6 +349,7 @@ class ClassLoader
             return false;
         }
         if (null !== $this->apcu) {
+            $hit = false;
             $file = apcu_fetch($this->apcu.$class, $hit);
             if ($hit) {
                 return $file;

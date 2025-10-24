@@ -221,7 +221,7 @@ class Transaction extends Model
     public function getFormattedAmountAttribute(): string
     {
         $prefix = $this->isIncome() ? '+' : '-';
-        return $prefix . '₦' . number_format($this->amount, 2);
+        return $prefix . '₦' . number_format((float) $this->amount, 2);
     }
 
     /**

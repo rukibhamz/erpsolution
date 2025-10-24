@@ -122,7 +122,7 @@ class Repair extends Model
      */
     public function getFormattedCostAttribute(): string
     {
-        return '₦' . number_format($this->cost, 2);
+        return '₦' . number_format((float) $this->cost, 2);
     }
 
     /**

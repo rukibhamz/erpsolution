@@ -119,7 +119,7 @@ class Lease extends Model
      */
     public function getFormattedMonthlyRentAttribute(): string
     {
-        return '₦' . number_format($this->monthly_rent, 2);
+        return '₦' . number_format((float) $this->monthly_rent, 2);
     }
 
     /**
@@ -127,7 +127,7 @@ class Lease extends Model
      */
     public function getFormattedSecurityDepositAttribute(): string
     {
-        return '₦' . number_format($this->security_deposit, 2);
+        return '₦' . number_format((float) $this->security_deposit, 2);
     }
 
     /**
@@ -135,7 +135,7 @@ class Lease extends Model
      */
     public function getFormattedLateFeeAttribute(): string
     {
-        return '₦' . number_format($this->late_fee, 2);
+        return '₦' . number_format((float) $this->late_fee, 2);
     }
 
     /**

@@ -54,7 +54,7 @@ class PropertyResource extends JsonResource
             ],
             'images' => $this->images,
             'current_lease' => $this->when($this->relationLoaded('currentLease'), function () {
-                return new LeaseResource($this->currentLease);
+                return $this->currentLease ? new LeaseResource($this->currentLease) : null;
             }),
             'timestamps' => [
                 'created_at' => $this->created_at,
