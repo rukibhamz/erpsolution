@@ -26,26 +26,26 @@ class EventController extends Controller
         // Apply filters
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
-                $q->where('title', 'like', '%' . $request->search . '%')
-                  ->orWhere('event_reference', 'like', '%' . $request->search . '%')
-                  ->orWhere('venue', 'like', '%' . $request->search . '%');
+                $q->where('title', 'like', '%' . $request->input('search') . '%')
+                  ->orWhere('event_reference', 'like', '%' . $request->input('search') . '%')
+                  ->orWhere('venue', 'like', '%' . $request->input('search') . '%');
             });
         }
 
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->where('status', $request->input('status'));
         }
 
         if ($request->filled('city')) {
-            $query->where('city', $request->city);
+            $query->where('city', $request->input('city'));
         }
 
         if ($request->filled('min_price')) {
-            $query->where('price', '>=', $request->min_price);
+            $query->where('price', '>=', $request->input('min_price'));
         }
 
         if ($request->filled('max_price')) {
-            $query->where('price', '<=', $request->max_price);
+            $query->where('price', '<=', $request->input('max_price'));
         }
 
         if ($request->filled('date_from')) {

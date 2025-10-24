@@ -19,7 +19,7 @@ class TaxTypeController extends Controller
 
         // Search functionality
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('code', 'like', "%{$search}%")
@@ -29,7 +29,7 @@ class TaxTypeController extends Controller
 
         // Filter by rate type
         if ($request->filled('rate_type')) {
-            $query->where('rate_type', $request->rate_type);
+            $query->where('rate_type', $request->input('rate_type'));
         }
 
         // Filter by status
@@ -68,15 +68,15 @@ class TaxTypeController extends Controller
         ]);
 
         $taxType = TaxType::create([
-            'name' => $request->name,
-            'code' => $request->code,
-            'description' => $request->description,
-            'rate' => $request->rate,
-            'rate_type' => $request->rate_type,
-            'is_percentage' => $request->boolean('is_percentage', $request->rate_type === 'percentage'),
+            'name' => $request->input('name'),
+            'code' => $request->input('code'),
+            'description' => $request->input('description'),
+            'rate' => $request->input('rate'),
+            'rate_type' => $request->input('rate_type'),
+            'is_percentage' => $request->boolean('is_percentage', $request->input('rate_type') === 'percentage'),
             'is_active' => $request->boolean('is_active', true),
-            'applies_to' => $request->applies_to,
-            'calculation_method' => $request->calculation_method,
+            'applies_to' => $request->input('applies_to'),
+            'calculation_method' => $request->input('calculation_method'),
         ]);
 
         activity()
@@ -112,7 +112,7 @@ class TaxTypeController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'code' => 'required|string|max:10|unique:tax_types,code,' . $taxType->id,
+            'code' => 'required|string|max:10|unique:tax_types,code,' . $taxType->getKey(),
             'description' => 'nullable|string|max:1000',
             'rate' => 'required|numeric|min:0',
             'rate_type' => 'required|in:percentage,fixed',
@@ -123,15 +123,15 @@ class TaxTypeController extends Controller
         ]);
 
         $taxType->update([
-            'name' => $request->name,
-            'code' => $request->code,
-            'description' => $request->description,
-            'rate' => $request->rate,
-            'rate_type' => $request->rate_type,
-            'is_percentage' => $request->boolean('is_percentage', $request->rate_type === 'percentage'),
+            'name' => $request->input('name'),
+            'code' => $request->input('code'),
+            'description' => $request->input('description'),
+            'rate' => $request->input('rate'),
+            'rate_type' => $request->input('rate_type'),
+            'is_percentage' => $request->boolean('is_percentage', $request->input('rate_type') === 'percentage'),
             'is_active' => $request->boolean('is_active', true),
-            'applies_to' => $request->applies_to,
-            'calculation_method' => $request->calculation_method,
+            'applies_to' => $request->input('applies_to'),
+            'calculation_method' => $request->input('calculation_method'),
         ]);
 
         activity()

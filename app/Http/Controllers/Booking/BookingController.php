@@ -25,30 +25,30 @@ class BookingController extends Controller
         // Apply filters
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
-                $q->where('booking_reference', 'like', '%' . $request->search . '%')
-                  ->orWhere('customer_name', 'like', '%' . $request->search . '%')
-                  ->orWhere('customer_email', 'like', '%' . $request->search . '%');
+                $q->where('booking_reference', 'like', '%' . $request->input('search') . '%')
+                  ->orWhere('customer_name', 'like', '%' . $request->input('search') . '%')
+                  ->orWhere('customer_email', 'like', '%' . $request->input('search') . '%');
             });
         }
 
         if ($request->filled('booking_status')) {
-            $query->where('booking_status', $request->booking_status);
+            $query->where('booking_status', $request->input('booking_status'));
         }
 
         if ($request->filled('payment_status')) {
-            $query->where('payment_status', $request->payment_status);
+            $query->where('payment_status', $request->input('payment_status'));
         }
 
         if ($request->filled('event_id')) {
-            $query->where('event_id', $request->event_id);
+            $query->where('event_id', $request->input('event_id'));
         }
 
         if ($request->filled('date_from')) {
-            $query->where('booking_date', '>=', $request->date_from);
+            $query->where('booking_date', '>=', $request->input('date_from'));
         }
 
         if ($request->filled('date_to')) {
-            $query->where('booking_date', '<=', $request->date_to);
+            $query->where('booking_date', '<=', $request->input('date_to'));
         }
 
         $bookings = $query->latest()->paginate(15);
@@ -176,7 +176,7 @@ class BookingController extends Controller
         ]);
 
         // Check if new quantity is available
-        $quantityDifference = $validated['ticket_quantity'] - $booking->ticket_quantity;
+        $quantityDifference = $validated['ticket_quantity'] - $booking->getAttribute('ticket_quantity');
         if ($quantityDifference > 0 && $booking->event->available_spots < $quantityDifference) {
             return redirect()->back()
                 ->with('error', 'Insufficient available spots for the requested quantity.');
@@ -215,13 +215,13 @@ class BookingController extends Controller
         $this->authorize('delete', $booking);
         
         // Check if booking can be cancelled
-        if ($booking->booking_status === 'confirmed' && $booking->payment_status === 'paid') {
+        if ($booking->getAttribute('booking_status') === 'confirmed' && $booking->getAttribute('payment_status') === 'paid') {
             return redirect()->route('admin.bookings.index')
                 ->with('error', 'Cannot delete confirmed and paid booking.');
         }
 
         // Update event booked count
-        $booking->event->decrement('booked_count', $booking->ticket_quantity);
+        $booking->event->decrement('booked_count', $booking->getAttribute('ticket_quantity'));
 
         $booking->delete();
 
@@ -262,7 +262,7 @@ class BookingController extends Controller
         $booking->update(['booking_status' => 'cancelled']);
 
         // Update event booked count
-        $booking->event->decrement('booked_count', $booking->ticket_quantity);
+        $booking->event->decrement('booked_count', $booking->getAttribute('ticket_quantity'));
 
         activity()
             ->causedBy(auth()->user())

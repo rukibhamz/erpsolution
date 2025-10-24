@@ -22,7 +22,7 @@ class PublicEventController extends Controller
 
         // Search functionality
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('description', 'like', "%{$search}%")
@@ -32,23 +32,23 @@ class PublicEventController extends Controller
 
         // Filter by category
         if ($request->filled('category_id')) {
-            $query->where('category_id', $request->category_id);
+            $query->where('category_id', $request->input('category_id'));
         }
 
         // Filter by date range
         if ($request->filled('start_date')) {
-            $query->where('start_date', '>=', $request->start_date);
+            $query->where('start_date', '>=', $request->input('start_date'));
         }
         if ($request->filled('end_date')) {
-            $query->where('start_date', '<=', $request->end_date);
+            $query->where('start_date', '<=', $request->input('end_date'));
         }
 
         // Filter by price range
         if ($request->filled('min_price')) {
-            $query->where('price', '>=', $request->min_price);
+            $query->where('price', '>=', $request->input('min_price'));
         }
         if ($request->filled('max_price')) {
-            $query->where('price', '<=', $request->max_price);
+            $query->where('price', '<=', $request->input('max_price'));
         }
 
         $events = $query->orderBy('start_date')->paginate(12);
@@ -63,7 +63,7 @@ class PublicEventController extends Controller
     public function show(Event $event): View
     {
         // Only show public events
-        if (!$event->is_public || $event->status !== 'active') {
+        if (!$event->getAttribute('is_public') || $event->getAttribute('status') !== 'active') {
             abort(404);
         }
 
@@ -73,8 +73,8 @@ class PublicEventController extends Controller
         $relatedEvents = Event::with(['category'])
             ->where('is_public', true)
             ->where('status', 'active')
-            ->where('id', '!=', $event->id)
-            ->where('category_id', $event->category_id)
+            ->where('id', '!=', $event->getKey())
+            ->where('category_id', $event->getAttribute('category_id'))
             ->where('start_date', '>=', now())
             ->limit(4)
             ->get();

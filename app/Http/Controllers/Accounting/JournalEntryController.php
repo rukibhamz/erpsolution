@@ -22,7 +22,7 @@ class JournalEntryController extends Controller
 
         // Search functionality
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('entry_reference', 'like', "%{$search}%")
                   ->orWhere('description', 'like', "%{$search}%");
@@ -31,15 +31,15 @@ class JournalEntryController extends Controller
 
         // Filter by status
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->where('status', $request->input('status'));
         }
 
         // Filter by date range
         if ($request->filled('start_date')) {
-            $query->where('entry_date', '>=', $request->start_date);
+            $query->where('entry_date', '>=', $request->input('start_date'));
         }
         if ($request->filled('end_date')) {
-            $query->where('entry_date', '<=', $request->end_date);
+            $query->where('entry_date', '<=', $request->input('end_date'));
         }
 
         $journalEntries = $query->latest('entry_date')->paginate(15);
@@ -77,7 +77,7 @@ class JournalEntryController extends Controller
         $totalDebit = 0;
         $totalCredit = 0;
         
-        foreach ($request->items as $item) {
+        foreach ($request->input('items') as $item) {
             $debit = $item['debit_amount'] ?? 0;
             $credit = $item['credit_amount'] ?? 0;
             
@@ -109,16 +109,16 @@ class JournalEntryController extends Controller
         DB::transaction(function () use ($request, $entryReference, $totalDebit, $totalCredit) {
             $journalEntry = JournalEntry::create([
                 'entry_reference' => $entryReference,
-                'entry_date' => $request->entry_date,
-                'description' => $request->description,
+                'entry_date' => $request->input('entry_date'),
+                'description' => $request->input('description'),
                 'total_debit' => $totalDebit,
                 'total_credit' => $totalCredit,
                 'status' => 'draft',
                 'created_by' => auth()->id(),
-                'notes' => $request->notes,
+                'notes' => $request->input('notes'),
             ]);
 
-            foreach ($request->items as $item) {
+            foreach ($request->input('items') as $item) {
                 JournalEntryItem::create([
                     'journal_entry_id' => $journalEntry->id,
                     'account_id' => $item['account_id'],
@@ -188,7 +188,7 @@ class JournalEntryController extends Controller
         $totalDebit = 0;
         $totalCredit = 0;
         
-        foreach ($request->items as $item) {
+        foreach ($request->input('items') as $item) {
             $debit = $item['debit_amount'] ?? 0;
             $credit = $item['credit_amount'] ?? 0;
             
@@ -216,18 +216,18 @@ class JournalEntryController extends Controller
 
         DB::transaction(function () use ($request, $journalEntry, $totalDebit, $totalCredit) {
             $journalEntry->update([
-                'entry_date' => $request->entry_date,
-                'description' => $request->description,
+                'entry_date' => $request->input('entry_date'),
+                'description' => $request->input('description'),
                 'total_debit' => $totalDebit,
                 'total_credit' => $totalCredit,
-                'notes' => $request->notes,
+                'notes' => $request->input('notes'),
             ]);
 
             // Delete existing items
             $journalEntry->journalEntryItems()->delete();
 
             // Create new items
-            foreach ($request->items as $item) {
+            foreach ($request->input('items') as $item) {
                 JournalEntryItem::create([
                     'journal_entry_id' => $journalEntry->id,
                     'account_id' => $item['account_id'],

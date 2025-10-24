@@ -19,7 +19,7 @@ class PublicBookingController extends Controller
     public function create(Event $event): View
     {
         // Only allow booking for public events
-        if (!$event->is_public || $event->status !== 'active') {
+        if (!$event->getAttribute('is_public') || $event->getAttribute('status') !== 'active') {
             abort(404);
         }
 
@@ -31,7 +31,7 @@ class PublicBookingController extends Controller
 
         // Check capacity
         $bookedSeats = $event->bookings()->where('status', '!=', 'cancelled')->sum('number_of_guests');
-        $availableSeats = $event->capacity - $bookedSeats;
+        $availableSeats = $event->getAttribute('capacity') - $bookedSeats;
 
         if ($availableSeats <= 0) {
             return redirect()->route('public.events.show', $event)
@@ -47,7 +47,7 @@ class PublicBookingController extends Controller
     public function store(Request $request, Event $event): RedirectResponse
     {
         // Only allow booking for public events
-        if (!$event->is_public || $event->status !== 'active') {
+        if (!$event->getAttribute('is_public') || $event->getAttribute('status') !== 'active') {
             abort(404);
         }
 
@@ -63,35 +63,35 @@ class PublicBookingController extends Controller
 
         // Check capacity
         $bookedSeats = $event->bookings()->where('status', '!=', 'cancelled')->sum('number_of_guests');
-        $availableSeats = $event->capacity - $bookedSeats;
+        $availableSeats = $event->getAttribute('capacity') - $bookedSeats;
 
-        if ($request->number_of_guests > $availableSeats) {
+        if ($request->input('number_of_guests') > $availableSeats) {
             return redirect()->back()
                 ->withInput()
                 ->with('error', 'Not enough seats available. Only ' . $availableSeats . ' seats remaining.');
         }
 
         // Calculate amounts
-        $totalAmount = $event->price * $request->number_of_guests;
-        $partialAmount = $request->payment_method === 'partial' ? $request->partial_payment_amount : $totalAmount;
+        $totalAmount = $event->getAttribute('price') * $request->input('number_of_guests');
+        $partialAmount = $request->input('payment_method') === 'partial' ? $request->input('partial_payment_amount') : $totalAmount;
         $remainingAmount = $totalAmount - $partialAmount;
 
         DB::beginTransaction();
         try {
             // Create booking
             $booking = EventBooking::create([
-                'event_id' => $event->id,
-                'customer_name' => $request->customer_name,
-                'customer_email' => $request->customer_email,
-                'customer_phone' => $request->customer_phone,
-                'number_of_guests' => $request->number_of_guests,
+                'event_id' => $event->getKey(),
+                'customer_name' => $request->input('customer_name'),
+                'customer_email' => $request->input('customer_email'),
+                'customer_phone' => $request->input('customer_phone'),
+                'number_of_guests' => $request->input('number_of_guests'),
                 'total_amount' => $totalAmount,
                 'amount_paid' => $partialAmount,
                 'remaining_amount' => $remainingAmount,
                 'booking_date' => now(),
                 'status' => 'pending',
-                'special_requirements' => $request->special_requirements,
-                'payment_status' => $request->payment_method === 'full' ? 'paid' : 'partial',
+                'special_requirements' => $request->input('special_requirements'),
+                'payment_status' => $request->input('payment_method') === 'full' ? 'paid' : 'partial',
                 'booking_reference' => 'BK-' . str_pad(EventBooking::count() + 1, 6, '0', STR_PAD_LEFT),
             ]);
 

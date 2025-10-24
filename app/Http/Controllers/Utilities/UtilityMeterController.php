@@ -21,7 +21,7 @@ class UtilityMeterController extends Controller
 
         // Search functionality
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('meter_number', 'like', "%{$search}%")
                   ->orWhere('location', 'like', "%{$search}%")
@@ -33,17 +33,17 @@ class UtilityMeterController extends Controller
 
         // Filter by utility type
         if ($request->filled('utility_type_id')) {
-            $query->where('utility_type_id', $request->utility_type_id);
+            $query->where('utility_type_id', $request->input('utility_type_id'));
         }
 
         // Filter by property
         if ($request->filled('property_id')) {
-            $query->where('property_id', $request->property_id);
+            $query->where('property_id', $request->input('property_id'));
         }
 
         // Filter by status
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->where('status', $request->input('status'));
         }
 
         // Filter by needs reading
@@ -87,16 +87,16 @@ class UtilityMeterController extends Controller
         ]);
 
         $utilityMeter = UtilityMeter::create([
-            'meter_number' => $request->meter_number,
-            'utility_type_id' => $request->utility_type_id,
-            'property_id' => $request->property_id,
-            'location' => $request->location,
-            'installation_date' => $request->installation_date,
-            'last_reading' => $request->last_reading,
-            'last_reading_date' => $request->last_reading_date,
-            'status' => $request->status,
+            'meter_number' => $request->input('meter_number'),
+            'utility_type_id' => $request->input('utility_type_id'),
+            'property_id' => $request->input('property_id'),
+            'location' => $request->input('location'),
+            'installation_date' => $request->input('installation_date'),
+            'last_reading' => $request->input('last_reading'),
+            'last_reading_date' => $request->input('last_reading_date'),
+            'status' => $request->input('status'),
             'is_active' => $request->boolean('is_active', true),
-            'notes' => $request->notes,
+            'notes' => $request->input('notes'),
         ]);
 
         activity()
@@ -133,7 +133,7 @@ class UtilityMeterController extends Controller
     public function update(Request $request, UtilityMeter $utilityMeter): RedirectResponse
     {
         $request->validate([
-            'meter_number' => 'required|string|max:100|unique:utility_meters,meter_number,' . $utilityMeter->id,
+            'meter_number' => 'required|string|max:100|unique:utility_meters,meter_number,' . $utilityMeter->getKey(),
             'utility_type_id' => 'required|exists:utility_types,id',
             'property_id' => 'required|exists:properties,id',
             'location' => 'required|string|max:255',
@@ -146,16 +146,16 @@ class UtilityMeterController extends Controller
         ]);
 
         $utilityMeter->update([
-            'meter_number' => $request->meter_number,
-            'utility_type_id' => $request->utility_type_id,
-            'property_id' => $request->property_id,
-            'location' => $request->location,
-            'installation_date' => $request->installation_date,
-            'last_reading' => $request->last_reading,
-            'last_reading_date' => $request->last_reading_date,
-            'status' => $request->status,
+            'meter_number' => $request->input('meter_number'),
+            'utility_type_id' => $request->input('utility_type_id'),
+            'property_id' => $request->input('property_id'),
+            'location' => $request->input('location'),
+            'installation_date' => $request->input('installation_date'),
+            'last_reading' => $request->input('last_reading'),
+            'last_reading_date' => $request->input('last_reading_date'),
+            'status' => $request->input('status'),
             'is_active' => $request->boolean('is_active', true),
-            'notes' => $request->notes,
+            'notes' => $request->input('notes'),
         ]);
 
         activity()
