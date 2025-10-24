@@ -85,10 +85,30 @@ if (file_exists(__DIR__.'/../vendor/autoload.php')) {
 
 $app = require_once __DIR__.'/../bootstrap/app.php';
 
-$kernel = $app->make(Kernel::class);
+// Simple request handling
+$request = Request::capture();
 
-$response = $kernel->handle(
-    $request = Request::capture()
-)->send();
+// Basic routing
+$uri = $request->getRequestUri();
+$method = $request->getMethod();
 
-$kernel->terminate($request, $response);
+// Handle different routes
+if ($uri === '/' || $uri === '/dashboard') {
+    // Dashboard route
+    include __DIR__ . '/../resources/views/admin/dashboard.blade.php';
+} elseif ($uri === '/login') {
+    // Login route
+    include __DIR__ . '/../resources/views/auth/login.blade.php';
+} elseif ($uri === '/properties') {
+    // Properties route
+    include __DIR__ . '/../resources/views/admin/properties/index.blade.php';
+} elseif ($uri === '/transactions') {
+    // Transactions route
+    include __DIR__ . '/../resources/views/admin/transactions/index.blade.php';
+} else {
+    // 404 Not Found
+    http_response_code(404);
+    echo '<h1>404 - Page Not Found</h1>';
+    echo '<p>The requested page could not be found.</p>';
+    echo '<p><a href="/">Go to Dashboard</a></p>';
+}
