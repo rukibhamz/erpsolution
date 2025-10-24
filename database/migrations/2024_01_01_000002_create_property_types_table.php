@@ -11,24 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('users', function (Blueprint $table) {
+        Schema::create('property_types', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
-            $table->string('phone')->nullable();
-            $table->string('avatar')->nullable();
+            $table->text('description')->nullable();
             $table->boolean('is_active')->default(true);
-            $table->timestamp('last_login_at')->nullable();
-            $table->string('last_login_ip')->nullable();
-            $table->rememberToken();
             $table->timestamps();
             $table->softDeletes();
             
-            // Add indexes for performance
+            // Add indexes
             $table->index(['is_active']);
-            $table->index(['email']);
+            $table->index(['name']);
         });
     }
 
@@ -37,6 +30,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('users');
+        Schema::dropIfExists('property_types');
     }
 };

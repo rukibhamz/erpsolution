@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use App\Models\Role;
 use Illuminate\Database\Seeder;
+use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 
 class UserSeeder extends Seeder
 {
@@ -16,38 +16,54 @@ class UserSeeder extends Seeder
     {
         // Create admin user
         $admin = User::create([
-            'name' => 'Administrator',
-            'email' => 'admin@example.com',
-            'password' => Hash::make('password'),
-            'phone' => '+234-xxx-xxx-xxxx',
+            'name' => 'System Administrator',
+            'email' => 'admin@erpsolution.com',
+            'password' => Hash::make('password123'),
+            'phone' => '+234-800-000-0000',
             'is_active' => true,
+            'email_verified_at' => now(),
         ]);
-
-        $adminRole = Role::where('name', 'admin')->first();
-        $admin->roles()->attach($adminRole);
+        $admin->assignRole('admin');
 
         // Create manager user
         $manager = User::create([
-            'name' => 'Manager User',
-            'email' => 'manager@example.com',
-            'password' => Hash::make('password'),
-            'phone' => '+234-xxx-xxx-xxxx',
+            'name' => 'Business Manager',
+            'email' => 'manager@erpsolution.com',
+            'password' => Hash::make('password123'),
+            'phone' => '+234-800-000-0001',
             'is_active' => true,
+            'email_verified_at' => now(),
         ]);
-
-        $managerRole = Role::where('name', 'manager')->first();
-        $manager->roles()->attach($managerRole);
+        $manager->assignRole('manager');
 
         // Create staff user
         $staff = User::create([
-            'name' => 'Staff User',
-            'email' => 'staff@example.com',
-            'password' => Hash::make('password'),
-            'phone' => '+234-xxx-xxx-xxxx',
+            'name' => 'Staff Member',
+            'email' => 'staff@erpsolution.com',
+            'password' => Hash::make('password123'),
+            'phone' => '+234-800-000-0002',
             'is_active' => true,
+            'email_verified_at' => now(),
         ]);
+        $staff->assignRole('staff');
 
-        $staffRole = Role::where('name', 'staff')->first();
-        $staff->roles()->attach($staffRole);
+        // Create additional test users
+        User::create([
+            'name' => 'John Doe',
+            'email' => 'john@erpsolution.com',
+            'password' => Hash::make('password123'),
+            'phone' => '+234-800-000-0003',
+            'is_active' => true,
+            'email_verified_at' => now(),
+        ])->assignRole('staff');
+
+        User::create([
+            'name' => 'Jane Smith',
+            'email' => 'jane@erpsolution.com',
+            'password' => Hash::make('password123'),
+            'phone' => '+234-800-000-0004',
+            'is_active' => true,
+            'email_verified_at' => now(),
+        ])->assignRole('manager');
     }
 }

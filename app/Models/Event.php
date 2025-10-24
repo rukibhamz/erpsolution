@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
@@ -15,33 +14,41 @@ class Event extends Model
     use HasFactory, SoftDeletes, LogsActivity;
 
     protected $fillable = [
+        'event_reference',
         'title',
         'description',
-        'category_id',
-        'venue',
-        'venue_address',
+        'short_description',
         'start_date',
         'end_date',
-        'max_attendees',
-        'price_per_person',
-        'deposit_amount',
-        'deposit_percentage',
-        'terms_and_conditions',
+        'start_time',
+        'end_time',
+        'venue',
+        'address',
+        'city',
+        'state',
+        'price',
+        'capacity',
+        'booked_count',
         'images',
         'amenities',
         'status',
-        'is_public',
+        'is_active',
         'allow_partial_payment',
+        'partial_payment_amount',
+        'terms_conditions',
+        'cancellation_policy',
     ];
 
     protected $casts = [
-        'start_date' => 'datetime',
-        'end_date' => 'datetime',
-        'price_per_person' => 'decimal:2',
-        'deposit_amount' => 'decimal:2',
+        'start_date' => 'date',
+        'end_date' => 'date',
+        'start_time' => 'datetime:H:i',
+        'end_time' => 'datetime:H:i',
+        'price' => 'decimal:2',
+        'partial_payment_amount' => 'decimal:2',
         'images' => 'array',
         'amenities' => 'array',
-        'is_public' => 'boolean',
+        'is_active' => 'boolean',
         'allow_partial_payment' => 'boolean',
     ];
 
@@ -51,17 +58,9 @@ class Event extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['title', 'start_date', 'end_date', 'price_per_person', 'status', 'is_public'])
+            ->logOnly(['title', 'status', 'price', 'capacity', 'is_active'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
-    }
-
-    /**
-     * Get the category for this event.
-     */
-    public function category(): BelongsTo
-    {
-        return $this->belongsTo(EventCategory::class, 'category_id');
     }
 
     /**
@@ -69,85 +68,11 @@ class Event extends Model
      */
     public function bookings(): HasMany
     {
-        return $this->hasMany(EventBooking::class);
+        return $this->hasMany(Booking::class);
     }
 
     /**
-     * Get the total number of attendees.
-     */
-    public function getTotalAttendeesAttribute(): int
-    {
-        return $this->bookings()->sum('number_of_attendees');
-    }
-
-    /**
-     * Get the remaining capacity.
-     */
-    public function getRemainingCapacityAttribute(): int
-    {
-        return $this->max_attendees - $this->total_attendees;
-    }
-
-    /**
-     * Get the total revenue from bookings.
-     */
-    public function getTotalRevenueAttribute(): float
-    {
-        return $this->bookings()
-            ->where('payment_status', 'paid')
-            ->sum('amount_paid');
-    }
-
-    /**
-     * Check if event is published.
-     */
-    public function isPublished(): bool
-    {
-        return $this->status === 'published';
-    }
-
-    /**
-     * Check if event is upcoming.
-     */
-    public function isUpcoming(): bool
-    {
-        return $this->start_date > now();
-    }
-
-    /**
-     * Check if event is ongoing.
-     */
-    public function isOngoing(): bool
-    {
-        return $this->start_date <= now() && $this->end_date >= now();
-    }
-
-    /**
-     * Check if event is completed.
-     */
-    public function isCompleted(): bool
-    {
-        return $this->end_date < now();
-    }
-
-    /**
-     * Check if event is fully booked.
-     */
-    public function isFullyBooked(): bool
-    {
-        return $this->total_attendees >= $this->max_attendees;
-    }
-
-    /**
-     * Get the event duration in hours.
-     */
-    public function getDurationInHoursAttribute(): float
-    {
-        return $this->start_date->diffInHours($this->end_date);
-    }
-
-    /**
-     * Get the event status badge color.
+     * Get the event's status badge color.
      */
     public function getStatusColorAttribute(): string
     {
@@ -161,6 +86,62 @@ class Event extends Model
     }
 
     /**
+     * Check if event is published.
+     */
+    public function isPublished(): bool
+    {
+        return $this->status === 'published';
+    }
+
+    /**
+     * Check if event is cancelled.
+     */
+    public function isCancelled(): bool
+    {
+        return $this->status === 'cancelled';
+    }
+
+    /**
+     * Check if event is completed.
+     */
+    public function isCompleted(): bool
+    {
+        return $this->status === 'completed';
+    }
+
+    /**
+     * Check if event has available spots.
+     */
+    public function hasAvailableSpots(): bool
+    {
+        return $this->booked_count < $this->capacity;
+    }
+
+    /**
+     * Get available spots count.
+     */
+    public function getAvailableSpotsAttribute(): int
+    {
+        return max(0, $this->capacity - $this->booked_count);
+    }
+
+    /**
+     * Get formatted price.
+     */
+    public function getFormattedPriceAttribute(): string
+    {
+        return '₦' . number_format($this->price, 2);
+    }
+
+    /**
+     * Get formatted partial payment amount.
+     */
+    public function getFormattedPartialPaymentAttribute(): string
+    {
+        return '₦' . number_format($this->partial_payment_amount, 2);
+    }
+
+    /**
      * Scope for published events.
      */
     public function scopePublished($query)
@@ -169,19 +150,19 @@ class Event extends Model
     }
 
     /**
+     * Scope for active events.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
+    /**
      * Scope for upcoming events.
      */
     public function scopeUpcoming($query)
     {
         return $query->where('start_date', '>', now());
-    }
-
-    /**
-     * Scope for public events.
-     */
-    public function scopePublic($query)
-    {
-        return $query->where('is_public', true);
     }
 
     /**

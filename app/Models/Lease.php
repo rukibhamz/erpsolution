@@ -15,35 +15,29 @@ class Lease extends Model
     use HasFactory, SoftDeletes, LogsActivity;
 
     protected $fillable = [
-        'lease_number',
+        'lease_reference',
         'property_id',
-        'tenant_id',
+        'tenant_name',
+        'tenant_email',
+        'tenant_phone',
+        'tenant_address',
         'start_date',
         'end_date',
         'monthly_rent',
-        'deposit_amount',
-        'late_fee_amount',
-        'late_fee_days',
-        'rent_due_date',
-        'terms_and_conditions',
-        'additional_charges',
+        'security_deposit',
+        'late_fee',
+        'grace_period_days',
         'status',
-        'termination_date',
-        'termination_reason',
-        'auto_renewal',
-        'renewal_notice_days',
+        'terms_conditions',
+        'notes',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
         'monthly_rent' => 'decimal:2',
-        'deposit_amount' => 'decimal:2',
-        'late_fee_amount' => 'decimal:2',
-        'rent_due_date' => 'date',
-        'additional_charges' => 'array',
-        'termination_date' => 'date',
-        'auto_renewal' => 'boolean',
+        'security_deposit' => 'decimal:2',
+        'late_fee' => 'decimal:2',
     ];
 
     /**
@@ -52,7 +46,7 @@ class Lease extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['lease_number', 'monthly_rent', 'status'])
+            ->logOnly(['lease_reference', 'status', 'monthly_rent', 'start_date', 'end_date'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }
@@ -66,14 +60,6 @@ class Lease extends Model
     }
 
     /**
-     * Get the tenant for this lease.
-     */
-    public function tenant(): BelongsTo
-    {
-        return $this->belongsTo(Tenant::class);
-    }
-
-    /**
      * Get the payments for this lease.
      */
     public function payments(): HasMany
@@ -82,31 +68,18 @@ class Lease extends Model
     }
 
     /**
-     * Get the total amount paid.
+     * Get the lease status badge color.
      */
-    public function getTotalPaidAttribute(): float
+    public function getStatusColorAttribute(): string
     {
-        return $this->payments()
-            ->where('status', 'completed')
-            ->sum('total_amount');
-    }
-
-    /**
-     * Get the outstanding balance.
-     */
-    public function getOutstandingBalanceAttribute(): float
-    {
-        $totalRent = $this->calculateTotalRent();
-        return $totalRent - $this->total_paid;
-    }
-
-    /**
-     * Calculate total rent for the lease period.
-     */
-    public function calculateTotalRent(): float
-    {
-        $months = $this->start_date->diffInMonths($this->end_date);
-        return $months * $this->monthly_rent;
+        return match ($this->status) {
+            'draft' => 'gray',
+            'active' => 'green',
+            'expired' => 'red',
+            'terminated' => 'orange',
+            'cancelled' => 'red',
+            default => 'gray',
+        };
     }
 
     /**
@@ -114,9 +87,7 @@ class Lease extends Model
      */
     public function isActive(): bool
     {
-        return $this->status === 'active' 
-            && $this->start_date <= now() 
-            && $this->end_date >= now();
+        return $this->status === 'active';
     }
 
     /**
@@ -124,37 +95,47 @@ class Lease extends Model
      */
     public function isExpired(): bool
     {
-        return $this->end_date < now();
+        return $this->status === 'expired' || $this->end_date < now();
     }
 
     /**
-     * Check if lease is expiring soon.
+     * Check if lease is terminated.
      */
-    public function isExpiringSoon(int $days = 30): bool
+    public function isTerminated(): bool
     {
-        return $this->end_date <= now()->addDays($days);
+        return $this->status === 'terminated';
     }
 
     /**
-     * Get the lease duration in months.
+     * Check if lease is cancelled.
      */
-    public function getDurationInMonthsAttribute(): int
+    public function isCancelled(): bool
     {
-        return $this->start_date->diffInMonths($this->end_date);
+        return $this->status === 'cancelled';
     }
 
     /**
-     * Get the lease status badge color.
+     * Get formatted monthly rent.
      */
-    public function getStatusColorAttribute(): string
+    public function getFormattedMonthlyRentAttribute(): string
     {
-        return match ($this->status) {
-            'active' => 'green',
-            'expired' => 'red',
-            'terminated' => 'red',
-            'renewed' => 'blue',
-            default => 'gray',
-        };
+        return '₦' . number_format($this->monthly_rent, 2);
+    }
+
+    /**
+     * Get formatted security deposit.
+     */
+    public function getFormattedSecurityDepositAttribute(): string
+    {
+        return '₦' . number_format($this->security_deposit, 2);
+    }
+
+    /**
+     * Get formatted late fee.
+     */
+    public function getFormattedLateFeeAttribute(): string
+    {
+        return '₦' . number_format($this->late_fee, 2);
     }
 
     /**
@@ -162,9 +143,7 @@ class Lease extends Model
      */
     public function scopeActive($query)
     {
-        return $query->where('status', 'active')
-            ->where('start_date', '<=', now())
-            ->where('end_date', '>=', now());
+        return $query->where('status', 'active');
     }
 
     /**
@@ -172,15 +151,15 @@ class Lease extends Model
      */
     public function scopeExpired($query)
     {
-        return $query->where('end_date', '<', now());
+        return $query->where('status', 'expired')
+            ->orWhere('end_date', '<', now());
     }
 
     /**
-     * Scope for expiring leases.
+     * Scope for leases by date range.
      */
-    public function scopeExpiring($query, int $days = 30)
+    public function scopeByDateRange($query, $startDate, $endDate)
     {
-        return $query->where('end_date', '<=', now()->addDays($days))
-            ->where('end_date', '>', now());
+        return $query->whereBetween('start_date', [$startDate, $endDate]);
     }
 }

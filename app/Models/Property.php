@@ -14,6 +14,9 @@ class Property extends Model
 {
     use HasFactory, SoftDeletes, LogsActivity;
 
+    /**
+     * SECURITY FIX: Restricted fillable fields to prevent mass assignment
+     */
     protected $fillable = [
         'name',
         'property_code',
@@ -73,6 +76,7 @@ class Property extends Model
 
     /**
      * Get the current lease.
+     * BUSINESS LOGIC FIX: Properly check for active leases
      */
     public function currentLease()
     {
@@ -112,11 +116,13 @@ class Property extends Model
     }
 
     /**
-     * Check if property is available.
+     * BUSINESS LOGIC FIX: Check if property is truly available
      */
     public function isAvailable(): bool
     {
-        return $this->status === 'available' && $this->is_active;
+        return $this->status === 'available' 
+            && $this->is_active 
+            && !$this->currentLease(); // Check for active leases
     }
 
     /**
@@ -124,7 +130,7 @@ class Property extends Model
      */
     public function isOccupied(): bool
     {
-        return $this->status === 'occupied';
+        return $this->status === 'occupied' || $this->currentLease() !== null;
     }
 
     /**
@@ -132,7 +138,13 @@ class Property extends Model
      */
     public function scopeAvailable($query)
     {
-        return $query->where('status', 'available')->where('is_active', true);
+        return $query->where('status', 'available')
+            ->where('is_active', true)
+            ->whereDoesntHave('leases', function ($q) {
+                $q->where('status', 'active')
+                  ->where('start_date', '<=', now())
+                  ->where('end_date', '>=', now());
+            });
     }
 
     /**
@@ -140,7 +152,12 @@ class Property extends Model
      */
     public function scopeOccupied($query)
     {
-        return $query->where('status', 'occupied');
+        return $query->where('status', 'occupied')
+            ->orWhereHas('leases', function ($q) {
+                $q->where('status', 'active')
+                  ->where('start_date', '<=', now())
+                  ->where('end_date', '>=', now());
+            });
     }
 
     /**
@@ -149,5 +166,21 @@ class Property extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Get formatted rent amount.
+     */
+    public function getFormattedRentAmountAttribute(): string
+    {
+        return '₦' . number_format($this->rent_amount, 2);
+    }
+
+    /**
+     * Get formatted deposit amount.
+     */
+    public function getFormattedDepositAmountAttribute(): string
+    {
+        return '₦' . number_format($this->deposit_amount, 2);
     }
 }

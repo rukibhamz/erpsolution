@@ -13,19 +13,22 @@ return new class extends Migration
     {
         Schema::create('lease_payments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('lease_id')->constrained();
             $table->string('payment_reference')->unique();
+            $table->foreignId('lease_id')->constrained()->onDelete('cascade');
+            $table->decimal('amount', 10, 2);
             $table->date('payment_date');
-            $table->decimal('amount', 15, 2);
-            $table->decimal('late_fee', 15, 2)->default(0);
-            $table->decimal('total_amount', 15, 2);
-            $table->enum('payment_method', ['cash', 'bank_transfer', 'card', 'cheque', 'online']);
-            $table->string('payment_reference_number')->nullable();
+            $table->string('payment_method');
+            $table->string('reference_number')->nullable();
             $table->text('notes')->nullable();
-            $table->enum('status', ['pending', 'completed', 'failed', 'cancelled'])->default('pending');
-            $table->foreignId('received_by')->nullable()->constrained('users');
-            $table->timestamp('processed_at')->nullable();
+            $table->enum('status', ['pending', 'paid', 'failed', 'refunded'])->default('pending');
             $table->timestamps();
+            $table->softDeletes();
+            
+            // Add indexes for performance
+            $table->index(['payment_reference']);
+            $table->index(['lease_id']);
+            $table->index(['status']);
+            $table->index(['payment_date']);
         });
     }
 

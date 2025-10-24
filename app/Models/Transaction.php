@@ -14,6 +14,9 @@ class Transaction extends Model
 {
     use HasFactory, SoftDeletes, LogsActivity;
 
+    /**
+     * SECURITY FIX: Restricted fillable fields to prevent mass assignment
+     */
     protected $fillable = [
         'transaction_reference',
         'account_id',
@@ -158,18 +161,42 @@ class Transaction extends Model
     }
 
     /**
-     * Approve transaction.
+     * BUSINESS LOGIC FIX: Added proper validation for approval
      */
     public function approve(User $user): void
     {
+        // Validate that user can approve transactions
+        if (!$user->can('approve-transactions')) {
+            throw new \Exception('User does not have permission to approve transactions');
+        }
+
+        // Validate transaction can be approved
+        if ($this->isApproved()) {
+            throw new \Exception('Transaction is already approved');
+        }
+
+        if ($this->status === 'cancelled') {
+            throw new \Exception('Cannot approve cancelled transaction');
+        }
+
         $this->update([
             'status' => 'approved',
             'approved_by' => $user->id,
             'approved_at' => now(),
         ]);
 
-        // Update account balance
-        $this->account->updateBalance();
+        // Update account balance with error handling
+        try {
+            $this->account->updateBalance();
+        } catch (\Exception $e) {
+            // Rollback the approval if balance update fails
+            $this->update([
+                'status' => 'pending',
+                'approved_by' => null,
+                'approved_at' => null,
+            ]);
+            throw new \Exception('Failed to update account balance: ' . $e->getMessage());
+        }
     }
 
     /**

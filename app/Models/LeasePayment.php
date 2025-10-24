@@ -5,34 +5,28 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
 class LeasePayment extends Model
 {
-    use HasFactory, LogsActivity;
+    use HasFactory, SoftDeletes, LogsActivity;
 
     protected $fillable = [
-        'lease_id',
         'payment_reference',
-        'payment_date',
+        'lease_id',
         'amount',
-        'late_fee',
-        'total_amount',
+        'payment_date',
         'payment_method',
-        'payment_reference_number',
+        'reference_number',
         'notes',
         'status',
-        'received_by',
-        'processed_at',
     ];
 
     protected $casts = [
-        'payment_date' => 'date',
         'amount' => 'decimal:2',
-        'late_fee' => 'decimal:2',
-        'total_amount' => 'decimal:2',
-        'processed_at' => 'datetime',
+        'payment_date' => 'date',
     ];
 
     /**
@@ -41,7 +35,7 @@ class LeasePayment extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['payment_reference', 'amount', 'status'])
+            ->logOnly(['payment_reference', 'amount', 'status', 'payment_date'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }
@@ -55,33 +49,25 @@ class LeasePayment extends Model
     }
 
     /**
-     * Get the user who received this payment.
-     */
-    public function receivedBy(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'received_by');
-    }
-
-    /**
      * Get the payment status badge color.
      */
     public function getStatusColorAttribute(): string
     {
         return match ($this->status) {
             'pending' => 'yellow',
-            'completed' => 'green',
+            'paid' => 'green',
             'failed' => 'red',
-            'cancelled' => 'gray',
+            'refunded' => 'blue',
             default => 'gray',
         };
     }
 
     /**
-     * Check if payment is completed.
+     * Check if payment is paid.
      */
-    public function isCompleted(): bool
+    public function isPaid(): bool
     {
-        return $this->status === 'completed';
+        return $this->status === 'paid';
     }
 
     /**
@@ -93,22 +79,27 @@ class LeasePayment extends Model
     }
 
     /**
-     * Mark payment as completed.
+     * Check if payment is failed.
      */
-    public function markAsCompleted(): void
+    public function isFailed(): bool
     {
-        $this->update([
-            'status' => 'completed',
-            'processed_at' => now(),
-        ]);
+        return $this->status === 'failed';
     }
 
     /**
-     * Scope for completed payments.
+     * Get formatted amount.
      */
-    public function scopeCompleted($query)
+    public function getFormattedAmountAttribute(): string
     {
-        return $query->where('status', 'completed');
+        return '₦' . number_format($this->amount, 2);
+    }
+
+    /**
+     * Scope for paid payments.
+     */
+    public function scopePaid($query)
+    {
+        return $query->where('status', 'paid');
     }
 
     /**

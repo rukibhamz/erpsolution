@@ -18,24 +18,18 @@ class User extends Authenticatable
 
     /**
      * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
+     * SECURITY FIX: Restricted fillable fields to prevent mass assignment
      */
     protected $fillable = [
         'name',
         'email',
-        'password',
         'phone',
         'avatar',
         'is_active',
-        'last_login_at',
-        'last_login_ip',
     ];
 
     /**
      * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
      */
     protected $hidden = [
         'password',
@@ -44,8 +38,6 @@ class User extends Authenticatable
 
     /**
      * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
      */
     protected function casts(): array
     {
@@ -78,10 +70,11 @@ class User extends Authenticatable
 
     /**
      * Get the user's avatar URL.
+     * SECURITY FIX: Added file existence check
      */
     public function getAvatarUrlAttribute(): string
     {
-        if ($this->avatar) {
+        if ($this->avatar && file_exists(storage_path('app/public/' . $this->avatar))) {
             return asset('storage/' . $this->avatar);
         }
         
@@ -137,5 +130,29 @@ class User extends Authenticatable
             'last_login_at' => now(),
             'last_login_ip' => $ip,
         ]);
+    }
+
+    /**
+     * Get properties created by this user.
+     */
+    public function createdProperties(): HasMany
+    {
+        return $this->hasMany(Property::class, 'created_by');
+    }
+
+    /**
+     * Get transactions created by this user.
+     */
+    public function createdTransactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class, 'created_by');
+    }
+
+    /**
+     * Get transactions approved by this user.
+     */
+    public function approvedTransactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class, 'approved_by');
     }
 }

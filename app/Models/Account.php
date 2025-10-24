@@ -5,30 +5,27 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
 class Account extends Model
 {
-    use HasFactory, LogsActivity;
+    use HasFactory, SoftDeletes, LogsActivity;
 
     protected $fillable = [
         'account_code',
         'account_name',
-        'description',
         'account_type',
-        'account_category',
-        'opening_balance',
-        'current_balance',
+        'parent_account_id',
+        'description',
+        'balance',
         'is_active',
-        'is_system_account',
     ];
 
     protected $casts = [
-        'opening_balance' => 'decimal:2',
-        'current_balance' => 'decimal:2',
+        'balance' => 'decimal:2',
         'is_active' => 'boolean',
-        'is_system_account' => 'boolean',
     ];
 
     /**
@@ -37,9 +34,17 @@ class Account extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['account_code', 'account_name', 'account_type', 'current_balance', 'is_active'])
+            ->logOnly(['account_name', 'account_type', 'balance', 'is_active'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
+    }
+
+    /**
+     * Get the transactions for this account.
+     */
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class);
     }
 
     /**
@@ -51,6 +56,22 @@ class Account extends Model
     }
 
     /**
+     * Get the parent account.
+     */
+    public function parentAccount()
+    {
+        return $this->belongsTo(Account::class, 'parent_account_id');
+    }
+
+    /**
+     * Get the child accounts.
+     */
+    public function childAccounts(): HasMany
+    {
+        return $this->hasMany(Account::class, 'parent_account_id');
+    }
+
+    /**
      * Get the account type badge color.
      */
     public function getTypeColorAttribute(): string
@@ -59,97 +80,44 @@ class Account extends Model
             'asset' => 'green',
             'liability' => 'red',
             'equity' => 'blue',
-            'revenue' => 'yellow',
-            'expense' => 'orange',
+            'income' => 'yellow',
+            'expense' => 'purple',
             default => 'gray',
         };
     }
 
     /**
-     * Get the account category badge color.
+     * Check if account is active.
      */
-    public function getCategoryColorAttribute(): string
+    public function isActive(): bool
     {
-        return match ($this->account_category) {
-            'current_asset' => 'green',
-            'fixed_asset' => 'emerald',
-            'current_liability' => 'red',
-            'long_term_liability' => 'rose',
-            'equity' => 'blue',
-            'revenue' => 'yellow',
-            'operating_expense' => 'orange',
-            'non_operating_expense' => 'amber',
-            default => 'gray',
-        };
+        return $this->is_active;
     }
 
     /**
-     * Check if account is an asset.
-     */
-    public function isAsset(): bool
-    {
-        return $this->account_type === 'asset';
-    }
-
-    /**
-     * Check if account is a liability.
-     */
-    public function isLiability(): bool
-    {
-        return $this->account_type === 'liability';
-    }
-
-    /**
-     * Check if account is equity.
-     */
-    public function isEquity(): bool
-    {
-        return $this->account_type === 'equity';
-    }
-
-    /**
-     * Check if account is revenue.
-     */
-    public function isRevenue(): bool
-    {
-        return $this->account_type === 'revenue';
-    }
-
-    /**
-     * Check if account is expense.
-     */
-    public function isExpense(): bool
-    {
-        return $this->account_type === 'expense';
-    }
-
-    /**
-     * Update account balance.
+     * Update account balance based on transactions.
      */
     public function updateBalance(): void
     {
-        $debitTotal = $this->journalEntryItems()->sum('debit_amount');
-        $creditTotal = $this->journalEntryItems()->sum('credit_amount');
-        
-        $this->update([
-            'current_balance' => $this->opening_balance + $debitTotal - $creditTotal
-        ]);
+        $balance = $this->transactions()
+            ->approved()
+            ->sum(\DB::raw('CASE 
+                WHEN transaction_type = "income" THEN amount 
+                WHEN transaction_type = "expense" THEN -amount 
+                WHEN transaction_type = "transfer" THEN 
+                    CASE WHEN account_id = ' . $this->id . ' THEN amount ELSE -amount END
+                ELSE 0 
+            END'));
+
+        $this->update(['balance' => $balance]);
     }
 
     /**
-     * Get account balance for display.
+     * Get formatted balance.
      */
-    public function getBalanceForDisplayAttribute(): string
+    public function getFormattedBalanceAttribute(): string
     {
-        $balance = $this->current_balance;
-        
-        // For assets and expenses, positive balance is normal
-        // For liabilities, equity, and revenue, negative balance is normal
-        if (in_array($this->account_type, ['liability', 'equity', 'revenue'])) {
-            $balance = -$balance;
-        }
-        
-        return '₦' . number_format($balance, 2);
+        return '₦' . number_format($this->balance, 2);
     }
 
     /**
@@ -166,21 +134,5 @@ class Account extends Model
     public function scopeByType($query, string $type)
     {
         return $query->where('account_type', $type);
-    }
-
-    /**
-     * Scope for accounts by category.
-     */
-    public function scopeByCategory($query, string $category)
-    {
-        return $query->where('account_category', $category);
-    }
-
-    /**
-     * Scope for non-system accounts.
-     */
-    public function scopeUserAccounts($query)
-    {
-        return $query->where('is_system_account', false);
     }
 }

@@ -6,109 +6,94 @@ use App\Http\Controllers\Controller;
 use App\Models\Transaction;
 use App\Models\Account;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\View\View;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class TransactionController extends Controller
 {
     /**
-     * Display a listing of transactions.
+     * Display a listing of the resource.
      */
     public function index(Request $request): View
     {
         $query = Transaction::with(['account', 'createdBy', 'approvedBy']);
 
-        // Search functionality
+        // Apply filters
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('transaction_reference', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
-                  ->orWhere('reference_number', 'like', "%{$search}%");
+            $query->where(function ($q) use ($request) {
+                $q->where('transaction_reference', 'like', '%' . $request->search . '%')
+                  ->orWhere('description', 'like', '%' . $request->search . '%')
+                  ->orWhere('reference_number', 'like', '%' . $request->search . '%');
             });
         }
 
-        // Filter by transaction type
         if ($request->filled('transaction_type')) {
             $query->where('transaction_type', $request->transaction_type);
         }
 
-        // Filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        // Filter by account
         if ($request->filled('account_id')) {
             $query->where('account_id', $request->account_id);
         }
 
-        // Filter by date range
-        if ($request->filled('start_date')) {
-            $query->where('transaction_date', '>=', $request->start_date);
-        }
-        if ($request->filled('end_date')) {
-            $query->where('transaction_date', '<=', $request->end_date);
+        if ($request->filled('date_from')) {
+            $query->where('transaction_date', '>=', $request->date_from);
         }
 
-        $transactions = $query->latest('transaction_date')->paginate(15);
+        if ($request->filled('date_to')) {
+            $query->where('transaction_date', '<=', $request->date_to);
+        }
+
+        $transactions = $query->latest()->paginate(15);
         $accounts = Account::active()->get();
 
-        return view('accounting.transactions.index', compact('transactions', 'accounts'));
+        return view('admin.transactions.index', compact('transactions', 'accounts'));
     }
 
     /**
-     * Show the form for creating a new transaction.
+     * Show the form for creating a new resource.
      */
-    public function create(Request $request): View
+    public function create(): View
     {
         $accounts = Account::active()->get();
-        $selectedAccount = $request->account_id ? Account::find($request->account_id) : null;
-        
-        return view('accounting.transactions.create', compact('accounts', 'selectedAccount'));
+        return view('admin.transactions.create', compact('accounts'));
     }
 
     /**
-     * Store a newly created transaction.
-     * BUG FIX: Implemented thread-safe reference generation using database transactions
+     * Store a newly created resource in storage.
      */
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
+        $validated = $request->validate([
             'account_id' => 'required|exists:accounts,id',
-            'transaction_type' => 'required|in:income,expense,transfer,adjustment',
+            'transaction_type' => ['required', Rule::in(['income', 'expense', 'transfer', 'adjustment'])],
             'amount' => 'required|numeric|min:0.01',
-            'description' => 'required|string|max:500',
+            'description' => 'required|string|max:255',
             'transaction_date' => 'required|date',
             'category' => 'nullable|string|max:100',
             'subcategory' => 'nullable|string|max:100',
             'payment_method' => 'nullable|string|max:50',
             'reference_number' => 'nullable|string|max:100',
-            'notes' => 'nullable|string|max:1000',
+            'notes' => 'nullable|string',
         ]);
 
-        // Generate unique transaction reference using database transaction
-        $transaction = DB::transaction(function () use ($request) {
+        // RACE CONDITION FIX: Generate unique transaction reference using database transaction
+        $transaction = DB::transaction(function () use ($validated) {
             // Get the next sequence number atomically
             $nextNumber = DB::table('transactions')
                 ->lockForUpdate()
                 ->max(DB::raw('CAST(SUBSTRING(transaction_reference, 5) AS UNSIGNED)')) + 1;
-            
+
             $transactionReference = 'TXN-' . str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
 
             return Transaction::create([
+                ...$validated,
                 'transaction_reference' => $transactionReference,
-                'account_id' => $request->account_id,
-                'transaction_type' => $request->transaction_type,
-                'amount' => $request->amount,
-                'description' => $request->description,
-                'transaction_date' => $request->transaction_date,
-                'category' => $request->category,
-                'subcategory' => $request->subcategory,
-                'payment_method' => $request->payment_method,
-                'reference_number' => $request->reference_number,
-                'notes' => $request->notes,
                 'created_by' => auth()->id(),
                 'status' => 'pending',
             ]);
@@ -124,59 +109,54 @@ class TransactionController extends Controller
     }
 
     /**
-     * Display the specified transaction.
+     * Display the specified resource.
      */
     public function show(Transaction $transaction): View
     {
         $transaction->load(['account', 'createdBy', 'approvedBy']);
-        return view('accounting.transactions.show', compact('transaction'));
+        return view('admin.transactions.show', compact('transaction'));
     }
 
     /**
-     * Show the form for editing the transaction.
+     * Show the form for editing the specified resource.
      */
     public function edit(Transaction $transaction): View
     {
+        // Only allow editing of pending transactions
+        if ($transaction->status !== 'pending') {
+            return redirect()->route('admin.transactions.index')
+                ->with('error', 'Only pending transactions can be edited.');
+        }
+
         $accounts = Account::active()->get();
-        return view('accounting.transactions.edit', compact('transaction', 'accounts'));
+        return view('admin.transactions.edit', compact('transaction', 'accounts'));
     }
 
     /**
-     * Update the specified transaction.
+     * Update the specified resource in storage.
      */
     public function update(Request $request, Transaction $transaction): RedirectResponse
     {
-        // Check if transaction is already approved
-        if ($transaction->isApproved()) {
+        // Only allow editing of pending transactions
+        if ($transaction->status !== 'pending') {
             return redirect()->route('admin.transactions.index')
-                ->with('error', 'Cannot edit approved transactions.');
+                ->with('error', 'Only pending transactions can be edited.');
         }
 
-        $request->validate([
+        $validated = $request->validate([
             'account_id' => 'required|exists:accounts,id',
-            'transaction_type' => 'required|in:income,expense,transfer,adjustment',
+            'transaction_type' => ['required', Rule::in(['income', 'expense', 'transfer', 'adjustment'])],
             'amount' => 'required|numeric|min:0.01',
-            'description' => 'required|string|max:500',
+            'description' => 'required|string|max:255',
             'transaction_date' => 'required|date',
             'category' => 'nullable|string|max:100',
             'subcategory' => 'nullable|string|max:100',
             'payment_method' => 'nullable|string|max:50',
             'reference_number' => 'nullable|string|max:100',
-            'notes' => 'nullable|string|max:1000',
+            'notes' => 'nullable|string',
         ]);
 
-        $transaction->update([
-            'account_id' => $request->account_id,
-            'transaction_type' => $request->transaction_type,
-            'amount' => $request->amount,
-            'description' => $request->description,
-            'transaction_date' => $request->transaction_date,
-            'category' => $request->category,
-            'subcategory' => $request->subcategory,
-            'payment_method' => $request->payment_method,
-            'reference_number' => $request->reference_number,
-            'notes' => $request->notes,
-        ]);
+        $transaction->update($validated);
 
         activity()
             ->causedBy(auth()->user())
@@ -188,76 +168,14 @@ class TransactionController extends Controller
     }
 
     /**
-     * Approve the specified transaction.
-     */
-    public function approve(Transaction $transaction): RedirectResponse
-    {
-        if ($transaction->isApproved()) {
-            return redirect()->route('admin.transactions.index')
-                ->with('error', 'Transaction is already approved.');
-        }
-
-        $transaction->approve(auth()->user());
-
-        activity()
-            ->causedBy(auth()->user())
-            ->performedOn($transaction)
-            ->log('Transaction approved');
-
-        return redirect()->route('admin.transactions.index')
-            ->with('success', 'Transaction approved successfully.');
-    }
-
-    /**
-     * Reject the specified transaction.
-     */
-    public function reject(Transaction $transaction): RedirectResponse
-    {
-        if ($transaction->isApproved()) {
-            return redirect()->route('admin.transactions.index')
-                ->with('error', 'Cannot reject approved transactions.');
-        }
-
-        $transaction->reject();
-
-        activity()
-            ->causedBy(auth()->user())
-            ->performedOn($transaction)
-            ->log('Transaction rejected');
-
-        return redirect()->route('admin.transactions.index')
-            ->with('success', 'Transaction rejected successfully.');
-    }
-
-    /**
-     * Cancel the specified transaction.
-     */
-    public function cancel(Transaction $transaction): RedirectResponse
-    {
-        if ($transaction->isApproved()) {
-            return redirect()->route('admin.transactions.index')
-                ->with('error', 'Cannot cancel approved transactions.');
-        }
-
-        $transaction->cancel();
-
-        activity()
-            ->causedBy(auth()->user())
-            ->performedOn($transaction)
-            ->log('Transaction cancelled');
-
-        return redirect()->route('admin.transactions.index')
-            ->with('success', 'Transaction cancelled successfully.');
-    }
-
-    /**
-     * Remove the specified transaction.
+     * Remove the specified resource from storage.
      */
     public function destroy(Transaction $transaction): RedirectResponse
     {
-        if ($transaction->isApproved()) {
+        // Only allow deletion of pending transactions
+        if ($transaction->status !== 'pending') {
             return redirect()->route('admin.transactions.index')
-                ->with('error', 'Cannot delete approved transactions.');
+                ->with('error', 'Only pending transactions can be deleted.');
         }
 
         $transaction->delete();
@@ -269,5 +187,59 @@ class TransactionController extends Controller
 
         return redirect()->route('admin.transactions.index')
             ->with('success', 'Transaction deleted successfully.');
+    }
+
+    /**
+     * Approve transaction
+     * BUSINESS LOGIC FIX: Added proper validation and error handling
+     */
+    public function approve(Transaction $transaction): RedirectResponse
+    {
+        try {
+            $transaction->approve(auth()->user());
+            
+            activity()
+                ->causedBy(auth()->user())
+                ->performedOn($transaction)
+                ->log('Transaction approved');
+
+            return redirect()->back()
+                ->with('success', 'Transaction approved successfully.');
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * Reject transaction
+     */
+    public function reject(Transaction $transaction): RedirectResponse
+    {
+        $transaction->reject();
+
+        activity()
+            ->causedBy(auth()->user())
+            ->performedOn($transaction)
+            ->log('Transaction rejected');
+
+        return redirect()->back()
+            ->with('success', 'Transaction rejected successfully.');
+    }
+
+    /**
+     * Cancel transaction
+     */
+    public function cancel(Transaction $transaction): RedirectResponse
+    {
+        $transaction->cancel();
+
+        activity()
+            ->causedBy(auth()->user())
+            ->performedOn($transaction)
+            ->log('Transaction cancelled');
+
+        return redirect()->back()
+            ->with('success', 'Transaction cancelled successfully.');
     }
 }
