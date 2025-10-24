@@ -22,6 +22,24 @@ if (file_exists($maintenance = __DIR__.'/../storage/framework/maintenance.php'))
 
 /*
 |--------------------------------------------------------------------------
+| Check If Application Needs Installation
+|--------------------------------------------------------------------------
+|
+| If the vendor directory doesn't exist, redirect to installation
+|
+*/
+
+if (!file_exists(__DIR__.'/../vendor/autoload.php')) {
+    // Check if we're already in installation mode
+    if (strpos($_SERVER['REQUEST_URI'], 'install') === false && 
+        strpos($_SERVER['REQUEST_URI'], 'simple-install') === false) {
+        header('Location: ../index.php');
+        exit;
+    }
+}
+
+/*
+|--------------------------------------------------------------------------
 | Register The Auto Loader
 |--------------------------------------------------------------------------
 |
@@ -31,7 +49,28 @@ if (file_exists($maintenance = __DIR__.'/../storage/framework/maintenance.php'))
 |
 */
 
-require __DIR__.'/../vendor/autoload.php';
+// Try to load Composer autoloader, fallback to simple autoloader
+if (file_exists(__DIR__.'/../vendor/autoload.php')) {
+    require __DIR__.'/../vendor/autoload.php';
+} else {
+    // Create a simple autoloader for basic functionality
+    spl_autoload_register(function ($class) {
+        $prefix = "App\\";
+        $base_dir = __DIR__ . "/../app/";
+        
+        $len = strlen($prefix);
+        if (strncmp($prefix, $class, $len) !== 0) {
+            return;
+        }
+        
+        $relative_class = substr($class, $len);
+        $file = $base_dir . str_replace("\\", "/", $relative_class) . ".php";
+        
+        if (file_exists($file)) {
+            require $file;
+        }
+    });
+}
 
 /*
 |--------------------------------------------------------------------------
