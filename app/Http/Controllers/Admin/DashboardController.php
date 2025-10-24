@@ -8,6 +8,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Event;
 use App\Models\Lease;
+use App\Services\QueryOptimizationService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Support\Facades\DB;
@@ -15,51 +16,30 @@ use Illuminate\Support\Facades\DB;
 class DashboardController extends Controller
 {
     /**
-     * Display the dashboard.
+     * PERFORMANCE FIX: Display the dashboard with optimized queries
      */
     public function index(): View
     {
-        // Get dashboard statistics
-        $stats = [
-            'total_properties' => Property::count(),
-            'available_properties' => Property::available()->count(),
-            'occupied_properties' => Property::occupied()->count(),
-            'total_users' => User::count(),
-            'active_users' => User::active()->count(),
-            'total_transactions' => Transaction::count(),
-            'pending_transactions' => Transaction::pending()->count(),
-            'total_events' => Event::count(),
-            'upcoming_events' => Event::where('start_date', '>', now())->count(),
-            'active_leases' => Lease::where('status', 'active')->count(),
-        ];
+        $optimizationService = new QueryOptimizationService();
+        
+        // Get dashboard statistics with optimized queries
+        $stats = $optimizationService->getDashboardStats();
 
-        // Get recent transactions
-        $recent_transactions = Transaction::with(['account', 'createdBy'])
+        // Get recent transactions with optimized query
+        $recent_transactions = Transaction::with(['account:id,account_name', 'createdBy:id,name'])
+            ->select('id', 'transaction_reference', 'account_id', 'amount', 'transaction_type', 'description', 'transaction_date', 'created_by')
             ->latest()
             ->limit(10)
             ->get();
 
-        // Get recent activities
-        $recent_activities = DB::table('activity_log')
-            ->join('users', 'activity_log.causer_id', '=', 'users.id')
-            ->select('activity_log.*', 'users.name as user_name')
-            ->latest('activity_log.created_at')
-            ->limit(10)
-            ->get();
+        // Get recent activities with optimized query
+        $recent_activities = $optimizationService->getRecentActivities(10);
 
-        // Get monthly revenue data
-        $monthly_revenue = Transaction::income()
-            ->approved()
-            ->whereYear('transaction_date', now()->year)
-            ->selectRaw('MONTH(transaction_date) as month, SUM(amount) as total')
-            ->groupBy('month')
-            ->orderBy('month')
-            ->get();
+        // Get monthly revenue data with optimized query
+        $monthly_revenue = $optimizationService->getMonthlyRevenue();
 
-        // Get property status distribution
-        $property_status = Property::selectRaw('status, COUNT(*) as count')
-            ->groupBy('status')
-            ->get();
+        // Get property status distribution with optimized query
+        $property_status = $optimizationService->getPropertyStatusDistribution();
 
         return view('admin.dashboard', compact(
             'stats',

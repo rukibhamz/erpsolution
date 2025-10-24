@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Property;
 use App\Models\PropertyType;
 use App\Services\PropertyStatusService;
+use App\Services\QueryOptimizationService;
+use App\Services\ErrorHandlingService;
 use App\Http\Requests\Property\StorePropertyRequest;
 use App\Http\Requests\Property\UpdatePropertyRequest;
+use App\Exceptions\BusinessLogicException;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -15,44 +18,21 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Gate;
+use Exception;
 
 class PropertyController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * PERFORMANCE FIX: Display a listing of the resource with optimized queries
      */
     public function index(Request $request): View
     {
         $this->authorize('viewAny', Property::class);
-        $query = Property::with(['propertyType', 'leases']);
-
-        // Apply filters
-        if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('name', 'like', '%' . $request->search . '%')
-                  ->orWhere('property_code', 'like', '%' . $request->search . '%')
-                  ->orWhere('address', 'like', '%' . $request->search . '%');
-            });
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('property_type_id')) {
-            $query->where('property_type_id', $request->property_type_id);
-        }
-
-        if ($request->filled('min_rent')) {
-            $query->where('rent_amount', '>=', $request->min_rent);
-        }
-
-        if ($request->filled('max_rent')) {
-            $query->where('rent_amount', '<=', $request->max_rent);
-        }
-
+        
+        $optimizationService = new QueryOptimizationService();
+        $query = $optimizationService->getOptimizedProperties($request->all());
         $properties = $query->paginate(15);
-        $propertyTypes = PropertyType::active()->get();
+        $propertyTypes = PropertyType::active()->select('id', 'name')->get();
 
         return view('admin.properties.index', compact('properties', 'propertyTypes'));
     }
@@ -68,39 +48,64 @@ class PropertyController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * ERROR HANDLING FIX: Store a newly created resource in storage with proper error handling
      */
     public function store(StorePropertyRequest $request): RedirectResponse
     {
-        $validated = $request->validated();
+        try {
+            $this->authorize('create', Property::class);
+            
+            $validated = $request->validated();
 
-        // Generate unique property code
-        $propertyCode = $this->generatePropertyCode();
+            // Generate unique property code
+            $propertyCode = $this->generatePropertyCode();
 
-        // Handle image uploads
-        $images = [];
-        if ($request->hasFile('images')) {
-            foreach ($request->file('images') as $image) {
-                $path = $image->store('properties', 'public');
-                $images[] = $path;
+            // Handle image uploads with error handling
+            $images = [];
+            if ($request->hasFile('images')) {
+                try {
+                    foreach ($request->file('images') as $image) {
+                        $path = $image->store('properties', 'public');
+                        $images[] = $path;
+                    }
+                } catch (Exception $e) {
+                    throw new BusinessLogicException(
+                        'Failed to upload images. Please try again.',
+                        'IMAGE_UPLOAD_ERROR',
+                        ['error' => $e->getMessage()]
+                    );
+                }
             }
+
+            $property = Property::create([
+                ...$validated,
+                'property_code' => $propertyCode,
+                'images' => $images,
+                'status' => 'available',
+                'is_active' => true,
+            ]);
+
+            activity()
+                ->causedBy(auth()->user())
+                ->performedOn($property)
+                ->log('Property created');
+
+            return redirect()->route('admin.properties.index')
+                ->with('success', 'Property created successfully.');
+
+        } catch (BusinessLogicException $e) {
+            return redirect()->back()
+                ->with('error', $e->getMessage())
+                ->with('error_code', $e->getErrorCode())
+                ->withInput();
+        } catch (Exception $e) {
+            $errorService = new ErrorHandlingService();
+            $errorService->handleError($e, 'Property Creation');
+            
+            return redirect()->back()
+                ->with('error', 'An error occurred while creating the property. Please try again.')
+                ->withInput();
         }
-
-        $property = Property::create([
-            ...$validated,
-            'property_code' => $propertyCode,
-            'images' => $images,
-            'status' => 'available',
-            'is_active' => true,
-        ]);
-
-        activity()
-            ->causedBy(auth()->user())
-            ->performedOn($property)
-            ->log('Property created');
-
-        return redirect()->route('admin.properties.index')
-            ->with('success', 'Property created successfully.');
     }
 
     /**

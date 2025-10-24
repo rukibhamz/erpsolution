@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Transaction;
 use App\Models\Account;
 use App\Services\TransactionApprovalService;
+use App\Services\QueryOptimizationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -15,43 +16,14 @@ use Illuminate\Validation\Rule;
 class TransactionController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * PERFORMANCE FIX: Display a listing of the resource with optimized queries
      */
     public function index(Request $request): View
     {
-        $query = Transaction::with(['account', 'createdBy', 'approvedBy']);
-
-        // Apply filters
-        if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('transaction_reference', 'like', '%' . $request->search . '%')
-                  ->orWhere('description', 'like', '%' . $request->search . '%')
-                  ->orWhere('reference_number', 'like', '%' . $request->search . '%');
-            });
-        }
-
-        if ($request->filled('transaction_type')) {
-            $query->where('transaction_type', $request->transaction_type);
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('account_id')) {
-            $query->where('account_id', $request->account_id);
-        }
-
-        if ($request->filled('date_from')) {
-            $query->where('transaction_date', '>=', $request->date_from);
-        }
-
-        if ($request->filled('date_to')) {
-            $query->where('transaction_date', '<=', $request->date_to);
-        }
-
+        $optimizationService = new QueryOptimizationService();
+        $query = $optimizationService->getOptimizedTransactions($request->all());
         $transactions = $query->latest()->paginate(15);
-        $accounts = Account::active()->get();
+        $accounts = Account::active()->select('id', 'account_name', 'account_type')->get();
 
         return view('admin.transactions.index', compact('transactions', 'accounts'));
     }
