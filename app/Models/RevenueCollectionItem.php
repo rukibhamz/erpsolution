@@ -87,7 +87,7 @@ class RevenueCollectionItem extends Model
      */
     public function calculateTotalAmount(): void
     {
-        $this->total_amount = $this->quantity * $this->unit_price;
+        $this->total_amount = $this->getAttribute('quantity') * $this->getAttribute('unit_price');
     }
 
     /**
@@ -95,7 +95,7 @@ class RevenueCollectionItem extends Model
      */
     public function calculateTaxAmount(): void
     {
-        $this->tax_amount = $this->total_amount * 0.05;
+        $this->tax_amount = $this->getAttribute('total_amount') * 0.05;
     }
 
     /**
@@ -103,7 +103,7 @@ class RevenueCollectionItem extends Model
      */
     public function calculateNetAmount(): void
     {
-        $this->net_amount = $this->total_amount - $this->tax_amount;
+        $this->net_amount = $this->getAttribute('total_amount') - $this->getAttribute('tax_amount');
     }
 
     /**

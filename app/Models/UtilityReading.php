@@ -109,11 +109,11 @@ class UtilityReading extends Model
      */
     public function getConsumptionTrendAttribute(): string
     {
-        if ($this->previous_reading === 0) {
+        if ($this->getAttribute('previous_reading') === 0) {
             return 'new';
         }
         
-        $percentageChange = (($this->consumption - $this->previous_reading) / $this->previous_reading) * 100;
+        $percentageChange = (($this->getAttribute('consumption') - $this->getAttribute('previous_reading')) / $this->getAttribute('previous_reading')) * 100;
         
         if ($percentageChange > 10) {
             return 'high';
@@ -143,8 +143,8 @@ class UtilityReading extends Model
      */
     public function calculateConsumption(): void
     {
-        $this->consumption = $this->reading - $this->previous_reading;
-        $this->total_amount = $this->consumption * $this->rate_per_unit;
+        $this->consumption = $this->getAttribute('reading') - $this->getAttribute('previous_reading');
+        $this->total_amount = $this->getAttribute('consumption') * $this->getAttribute('rate_per_unit');
     }
 
     /**
@@ -153,7 +153,7 @@ class UtilityReading extends Model
     public function verify(User $user): void
     {
         $this->update([
-            'verified_by' => $user->id,
+            'verified_by' => $user->getKey(),
             'verified_at' => now(),
         ]);
     }

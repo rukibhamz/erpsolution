@@ -100,7 +100,7 @@ class TaxCalculation extends Model
      */
     public function isCalculated(): bool
     {
-        return $this->status === 'calculated';
+        return $this->getAttribute('status') === 'calculated';
     }
 
     /**
@@ -108,7 +108,7 @@ class TaxCalculation extends Model
      */
     public function isPaid(): bool
     {
-        return $this->status === 'paid';
+        return $this->getAttribute('status') === 'paid';
     }
 
     /**
@@ -116,7 +116,7 @@ class TaxCalculation extends Model
      */
     public function isOverdue(): bool
     {
-        return $this->status === 'overdue';
+        return $this->getAttribute('status') === 'overdue';
     }
 
     /**
@@ -124,7 +124,7 @@ class TaxCalculation extends Model
      */
     public function isCancelled(): bool
     {
-        return $this->status === 'cancelled';
+        return $this->getAttribute('status') === 'cancelled';
     }
 
     /**
@@ -148,7 +148,7 @@ class TaxCalculation extends Model
      */
     public function getFormattedTaxRateAttribute(): string
     {
-        return $this->tax_rate . '%';
+        return $this->getAttribute('tax_rate') . '%';
     }
 
     /**
@@ -156,7 +156,7 @@ class TaxCalculation extends Model
      */
     public function calculateTaxAmount(): void
     {
-        $this->tax_amount = ($this->base_amount * $this->tax_rate) / 100;
+        $this->tax_amount = ($this->getAttribute('base_amount') * $this->getAttribute('tax_rate')) / 100;
     }
 
     /**

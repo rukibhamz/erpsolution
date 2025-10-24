@@ -101,7 +101,7 @@ class MaintenanceLog extends Model
      */
     public function isEmergency(): bool
     {
-        return $this->maintenance_type === 'emergency';
+        return $this->getAttribute('maintenance_type') === 'emergency';
     }
 
     /**
@@ -109,7 +109,7 @@ class MaintenanceLog extends Model
      */
     public function isOverdue(): bool
     {
-        return $this->next_maintenance_date && $this->next_maintenance_date < now();
+        return $this->getAttribute('next_maintenance_date') && $this->getAttribute('next_maintenance_date') < now();
     }
 
     /**
@@ -117,9 +117,9 @@ class MaintenanceLog extends Model
      */
     public function isDueSoon(): bool
     {
-        return $this->next_maintenance_date && 
-               $this->next_maintenance_date <= now()->addDays(7) && 
-               $this->next_maintenance_date >= now();
+        return $this->getAttribute('next_maintenance_date') && 
+               $this->getAttribute('next_maintenance_date') <= now()->addDays(7) && 
+               $this->getAttribute('next_maintenance_date') >= now();
     }
 
     /**
@@ -135,8 +135,8 @@ class MaintenanceLog extends Model
      */
     public function getDaysUntilNextMaintenanceAttribute(): int
     {
-        if ($this->next_maintenance_date) {
-            return now()->diffInDays($this->next_maintenance_date, false);
+        if ($this->getAttribute('next_maintenance_date')) {
+            return now()->diffInDays($this->getAttribute('next_maintenance_date'), false);
         }
         
         return 0;

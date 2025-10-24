@@ -98,7 +98,7 @@ class UtilityBillPayment extends Model
      */
     public function isCancelled(): bool
     {
-        return $this->status === 'cancelled';
+        return $this->getAttribute('status') === 'cancelled';
     }
 
     /**
@@ -117,8 +117,8 @@ class UtilityBillPayment extends Model
         $this->update(['status' => 'completed']);
         
         // Update bill payment status if fully paid
-        $bill = $this->bill;
-        if ($bill->outstanding_balance <= 0) {
+        $bill = $this->getAttribute('bill');
+        if ($bill->getAttribute('outstanding_balance') <= 0) {
             $bill->markAsPaid();
         }
     }

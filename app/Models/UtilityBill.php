@@ -105,7 +105,7 @@ class UtilityBill extends Model
      */
     public function getPaymentStatusColorAttribute(): string
     {
-        return match ($this->payment_status) {
+        return match ($this->getAttribute('payment_status')) {
             'paid' => 'green',
             'pending' => 'yellow',
             'overdue' => 'red',
@@ -119,7 +119,7 @@ class UtilityBill extends Model
      */
     public function isPaid(): bool
     {
-        return $this->payment_status === 'paid';
+        return $this->getAttribute('payment_status') === 'paid';
     }
 
     /**
@@ -127,7 +127,7 @@ class UtilityBill extends Model
      */
     public function isPending(): bool
     {
-        return $this->payment_status === 'pending';
+        return $this->getAttribute('payment_status') === 'pending';
     }
 
     /**
@@ -135,7 +135,7 @@ class UtilityBill extends Model
      */
     public function isOverdue(): bool
     {
-        return $this->payment_status === 'overdue';
+        return $this->getAttribute('payment_status') === 'overdue';
     }
 
     /**
@@ -143,7 +143,7 @@ class UtilityBill extends Model
      */
     public function isCancelled(): bool
     {
-        return $this->payment_status === 'cancelled';
+        return $this->getAttribute('payment_status') === 'cancelled';
     }
 
     /**
@@ -159,7 +159,7 @@ class UtilityBill extends Model
      */
     public function getFormattedConsumptionAttribute(): string
     {
-        return number_format((float) $this->consumption, 2) . ' ' . $this->utilityType->unit_of_measure;
+        return number_format((float) $this->getAttribute('consumption'), 2) . ' ' . $this->utilityType->getAttribute('unit_of_measure');
     }
 
     /**
@@ -167,7 +167,7 @@ class UtilityBill extends Model
      */
     public function getDaysUntilDueAttribute(): int
     {
-        return now()->diffInDays($this->due_date, false);
+        return now()->diffInDays($this->getAttribute('due_date'), false);
     }
 
     /**
@@ -175,11 +175,11 @@ class UtilityBill extends Model
      */
     public function getDaysOverdueAttribute(): int
     {
-        if ($this->due_date >= now()) {
+        if ($this->getAttribute('due_date') >= now()) {
             return 0;
         }
         
-        return now()->diffInDays($this->due_date);
+        return now()->diffInDays($this->getAttribute('due_date'));
     }
 
     /**
@@ -197,7 +197,7 @@ class UtilityBill extends Model
      */
     public function getOutstandingBalanceAttribute(): float
     {
-        return $this->total_amount - $this->total_paid;
+        return $this->getAttribute('total_amount') - $this->getAttribute('total_paid');
     }
 
     /**
@@ -232,10 +232,10 @@ class UtilityBill extends Model
      */
     public function calculateAmounts(): void
     {
-        $this->consumption = $this->current_reading - $this->previous_reading;
-        $this->base_amount = $this->consumption * $this->rate_per_unit;
-        $this->tax_amount = $this->base_amount * 0.05; // 5% tax
-        $this->total_amount = $this->base_amount + $this->tax_amount;
+        $this->consumption = $this->getAttribute('current_reading') - $this->getAttribute('previous_reading');
+        $this->base_amount = $this->getAttribute('consumption') * $this->getAttribute('rate_per_unit');
+        $this->tax_amount = $this->getAttribute('base_amount') * 0.05; // 5% tax
+        $this->total_amount = $this->getAttribute('base_amount') + $this->getAttribute('tax_amount');
     }
 
     /**

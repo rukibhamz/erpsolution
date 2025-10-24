@@ -102,7 +102,7 @@ class RevenueCollection extends Model
      */
     public function getCollectionTypeColorAttribute(): string
     {
-        return match ($this->collection_type) {
+        return match ($this->getAttribute('collection_type')) {
             'rent' => 'blue',
             'service_charge' => 'green',
             'maintenance_fee' => 'yellow',
@@ -117,7 +117,7 @@ class RevenueCollection extends Model
      */
     public function isPending(): bool
     {
-        return $this->payment_status === 'pending';
+        return $this->getAttribute('payment_status') === 'pending';
     }
 
     /**
@@ -125,7 +125,7 @@ class RevenueCollection extends Model
      */
     public function isPaid(): bool
     {
-        return $this->payment_status === 'paid';
+        return $this->getAttribute('payment_status') === 'paid';
     }
 
     /**
@@ -133,7 +133,7 @@ class RevenueCollection extends Model
      */
     public function isOverdue(): bool
     {
-        return $this->payment_status === 'overdue';
+        return $this->getAttribute('payment_status') === 'overdue';
     }
 
     /**
@@ -141,7 +141,7 @@ class RevenueCollection extends Model
      */
     public function isCancelled(): bool
     {
-        return $this->payment_status === 'cancelled';
+        return $this->getAttribute('payment_status') === 'cancelled';
     }
 
     /**
@@ -149,7 +149,7 @@ class RevenueCollection extends Model
      */
     public function isVerified(): bool
     {
-        return !is_null($this->verified_at);
+        return !is_null($this->getAttribute('verified_at'));
     }
 
     /**
@@ -165,7 +165,7 @@ class RevenueCollection extends Model
      */
     public function getDaysUntilDueAttribute(): int
     {
-        return now()->diffInDays($this->due_date, false);
+        return now()->diffInDays($this->getAttribute('due_date'), false);
     }
 
     /**
@@ -173,11 +173,11 @@ class RevenueCollection extends Model
      */
     public function getDaysOverdueAttribute(): int
     {
-        if ($this->due_date >= now()) {
+        if ($this->getAttribute('due_date') >= now()) {
             return 0;
         }
         
-        return now()->diffInDays($this->due_date);
+        return now()->diffInDays($this->getAttribute('due_date'));
     }
 
     /**
@@ -213,7 +213,7 @@ class RevenueCollection extends Model
     public function verify(User $user): void
     {
         $this->update([
-            'verified_by' => $user->id,
+            'verified_by' => $user->getKey(),
             'verified_at' => now(),
         ]);
     }

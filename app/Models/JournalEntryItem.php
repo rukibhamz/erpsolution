@@ -61,7 +61,7 @@ class JournalEntryItem extends Model
      */
     public function getTypeAttribute(): string
     {
-        return $this->debit_amount > 0 ? 'debit' : 'credit';
+        return $this->getAttribute('debit_amount') > 0 ? 'debit' : 'credit';
     }
 
     /**

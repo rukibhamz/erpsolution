@@ -98,7 +98,7 @@ class Repair extends Model
      */
     public function isCompleted(): bool
     {
-        return $this->repair_status === 'completed';
+        return $this->getAttribute('repair_status') === 'completed';
     }
 
     /**
@@ -106,7 +106,7 @@ class Repair extends Model
      */
     public function isCancelled(): bool
     {
-        return $this->repair_status === 'cancelled';
+        return $this->getAttribute('repair_status') === 'cancelled';
     }
 
     /**
@@ -114,7 +114,7 @@ class Repair extends Model
      */
     public function isUnderWarranty(): bool
     {
-        return $this->warranty_expiry && $this->warranty_expiry > now();
+        return $this->getAttribute('warranty_expiry') && $this->getAttribute('warranty_expiry') > now();
     }
 
     /**
@@ -130,11 +130,11 @@ class Repair extends Model
      */
     public function getDurationInDaysAttribute(): int
     {
-        if ($this->completion_date) {
-            return $this->repair_date->diffInDays($this->completion_date);
+        if ($this->getAttribute('completion_date')) {
+            return $this->getAttribute('repair_date')->diffInDays($this->getAttribute('completion_date'));
         }
         
-        return $this->repair_date->diffInDays(now());
+        return $this->getAttribute('repair_date')->diffInDays(now());
     }
 
     /**

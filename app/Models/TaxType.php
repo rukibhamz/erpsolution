@@ -93,7 +93,7 @@ class TaxType extends Model
      */
     public function calculateTax(float $baseAmount): float
     {
-        if ($this->is_percentage) {
+        if ($this->getAttribute('is_percentage')) {
             return ($baseAmount * $this->rate) / 100;
         }
         
@@ -105,11 +105,11 @@ class TaxType extends Model
      */
     public function getFormattedRateAttribute(): string
     {
-        if ($this->is_percentage) {
-            return $this->rate . '%';
+        if ($this->getAttribute('is_percentage')) {
+            return $this->getAttribute('rate') . '%';
         }
         
-        return '₦' . number_format((float) $this->rate, 2);
+        return '₦' . number_format((float) $this->getAttribute('rate'), 2);
     }
 
     /**

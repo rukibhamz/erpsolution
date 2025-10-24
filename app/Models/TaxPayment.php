@@ -100,7 +100,7 @@ class TaxPayment extends Model
      */
     public function isFailed(): bool
     {
-        return $this->payment_status === 'failed';
+        return $this->getAttribute('payment_status') === 'failed';
     }
 
     /**
@@ -108,7 +108,7 @@ class TaxPayment extends Model
      */
     public function isCancelled(): bool
     {
-        return $this->payment_status === 'cancelled';
+        return $this->getAttribute('payment_status') === 'cancelled';
     }
 
     /**
@@ -127,7 +127,7 @@ class TaxPayment extends Model
         $this->update(['payment_status' => 'completed']);
         
         // Update tax calculation status
-        $this->taxCalculation->markAsPaid();
+        $this->getAttribute('taxCalculation')->markAsPaid();
     }
 
     /**

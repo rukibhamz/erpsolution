@@ -53,7 +53,7 @@ class LeasePayment extends Model
      */
     public function getStatusColorAttribute(): string
     {
-        return match ($this->status) {
+        return match ($this->getAttribute('status')) {
             'pending' => 'yellow',
             'paid' => 'green',
             'failed' => 'red',
@@ -67,7 +67,7 @@ class LeasePayment extends Model
      */
     public function isPaid(): bool
     {
-        return $this->status === 'paid';
+        return $this->getAttribute('status') === 'paid';
     }
 
     /**
@@ -75,7 +75,7 @@ class LeasePayment extends Model
      */
     public function isPending(): bool
     {
-        return $this->status === 'pending';
+        return $this->getAttribute('status') === 'pending';
     }
 
     /**
@@ -83,7 +83,7 @@ class LeasePayment extends Model
      */
     public function isFailed(): bool
     {
-        return $this->status === 'failed';
+        return $this->getAttribute('status') === 'failed';
     }
 
     /**
