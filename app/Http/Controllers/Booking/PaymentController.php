@@ -20,7 +20,7 @@ class PaymentController extends Controller
 
         // Search functionality
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('payment_reference', 'like', "%{$search}%")
                   ->orWhere('gateway_reference', 'like', "%{$search}%")
@@ -33,20 +33,20 @@ class PaymentController extends Controller
 
         // Filter by status
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->where('status', $request->input('status'));
         }
 
         // Filter by payment method
         if ($request->filled('payment_method')) {
-            $query->where('payment_method', $request->payment_method);
+            $query->where('payment_method', $request->input('payment_method'));
         }
 
         // Filter by date range
         if ($request->filled('start_date')) {
-            $query->where('created_at', '>=', $request->start_date);
+            $query->where('created_at', '>=', $request->input('start_date'));
         }
         if ($request->filled('end_date')) {
-            $query->where('created_at', '<=', $request->end_date);
+            $query->where('created_at', '<=', $request->input('end_date'));
         }
 
         $payments = $query->latest()->paginate(15);
@@ -59,7 +59,7 @@ class PaymentController extends Controller
      */
     public function create(Request $request): View
     {
-        $booking = $request->booking_id ? EventBooking::findOrFail($request->booking_id) : null;
+        $booking = $request->input('booking_id') ? EventBooking::findOrFail($request->input('booking_id')) : null;
         $bookings = EventBooking::where('payment_status', '!=', 'paid')->get();
         
         return view('booking.payments.create', compact('bookings', 'booking'));
@@ -78,11 +78,11 @@ class PaymentController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $booking = EventBooking::findOrFail($request->booking_id);
+        $booking = EventBooking::findOrFail($request->input('booking_id'));
 
         // Check if payment amount exceeds outstanding balance
         $outstandingBalance = $booking->outstanding_balance;
-        if ($request->amount > $outstandingBalance) {
+        if ($request->input('amount') > $outstandingBalance) {
             return redirect()->back()
                 ->with('error', 'Payment amount cannot exceed outstanding balance.');
         }
@@ -91,13 +91,13 @@ class PaymentController extends Controller
         $paymentReference = 'PAY-' . str_pad(BookingPayment::count() + 1, 6, '0', STR_PAD_LEFT);
 
         $payment = BookingPayment::create([
-            'booking_id' => $request->booking_id,
+            'booking_id' => $request->input('booking_id'),
             'payment_reference' => $paymentReference,
-            'amount' => $request->amount,
-            'payment_method' => $request->payment_method,
-            'gateway_reference' => $request->gateway_reference,
+            'amount' => $request->input('amount'),
+            'payment_method' => $request->input('payment_method'),
+            'gateway_reference' => $request->input('gateway_reference'),
             'status' => 'completed', // Auto-complete for manual payments
-            'notes' => $request->notes,
+            'notes' => $request->input('notes'),
             'processed_at' => now(),
         ]);
 
@@ -149,7 +149,7 @@ class PaymentController extends Controller
             'payment_method' => $request->payment_method,
             'gateway_reference' => $request->gateway_reference,
             'status' => $request->status,
-            'notes' => $request->notes,
+            'notes' => $request->input('notes'),
         ]);
 
         // Update booking payment status if payment is completed
@@ -203,7 +203,7 @@ class PaymentController extends Controller
      */
     public function destroy(BookingPayment $payment): RedirectResponse
     {
-        $booking = $payment->booking;
+        $booking = $payment->getAttribute('booking');
         $payment->delete();
 
         // Update booking payment status

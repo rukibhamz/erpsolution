@@ -114,7 +114,7 @@ class Event extends Model
      */
     public function hasAvailableSpots(): bool
     {
-        return $this->booked_count < $this->capacity;
+        return $this->getAttribute('booked_count') < $this->getAttribute('capacity');
     }
 
     /**
@@ -122,7 +122,7 @@ class Event extends Model
      */
     public function getAvailableSpotsAttribute(): int
     {
-        return max(0, $this->capacity - $this->booked_count);
+        return max(0, $this->getAttribute('capacity') - $this->getAttribute('booked_count'));
     }
 
     /**

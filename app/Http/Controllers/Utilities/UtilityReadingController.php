@@ -21,7 +21,7 @@ class UtilityReadingController extends Controller
 
         // Search functionality
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('reading', 'like', "%{$search}%")
                   ->orWhere('notes', 'like', "%{$search}%")
@@ -33,12 +33,12 @@ class UtilityReadingController extends Controller
 
         // Filter by utility type
         if ($request->filled('utility_type_id')) {
-            $query->where('utility_type_id', $request->utility_type_id);
+            $query->where('utility_type_id', $request->input('utility_type_id'));
         }
 
         // Filter by meter
         if ($request->filled('meter_id')) {
-            $query->where('meter_id', $request->meter_id);
+            $query->where('meter_id', $request->input('meter_id'));
         }
 
         // Filter by verification status
@@ -52,10 +52,10 @@ class UtilityReadingController extends Controller
 
         // Filter by date range
         if ($request->filled('start_date')) {
-            $query->where('reading_date', '>=', $request->start_date);
+            $query->where('reading_date', '>=', $request->input('start_date'));
         }
         if ($request->filled('end_date')) {
-            $query->where('reading_date', '<=', $request->end_date);
+            $query->where('reading_date', '<=', $request->input('end_date'));
         }
 
         $utilityReadings = $query->latest('reading_date')->paginate(15);
@@ -72,7 +72,7 @@ class UtilityReadingController extends Controller
     {
         $utilityMeters = UtilityMeter::active()->get();
         $utilityTypes = UtilityType::active()->get();
-        $selectedMeter = $request->meter_id ? UtilityMeter::find($request->meter_id) : null;
+        $selectedMeter = $request->input('meter_id') ? UtilityMeter::find($request->input('meter_id')) : null;
         
         return view('utilities.readings.create', compact('utilityMeters', 'utilityTypes', 'selectedMeter'));
     }
@@ -91,7 +91,7 @@ class UtilityReadingController extends Controller
             'notes' => 'nullable|string|max:1000',
         ]);
 
-        $meter = UtilityMeter::findOrFail($request->meter_id);
+        $meter = UtilityMeter::findOrFail($request->input('meter_id'));
         
         // Get previous reading
         $previousReading = $meter->utilityReadings()
@@ -101,22 +101,22 @@ class UtilityReadingController extends Controller
         $previousReadingValue = $previousReading ? $previousReading->reading : 0;
 
         $utilityReading = UtilityReading::create([
-            'meter_id' => $request->meter_id,
-            'utility_type_id' => $request->utility_type_id,
-            'reading' => $request->reading,
-            'reading_date' => $request->reading_date,
+            'meter_id' => $request->input('meter_id'),
+            'utility_type_id' => $request->input('utility_type_id'),
+            'reading' => $request->input('reading'),
+            'reading_date' => $request->input('reading_date'),
             'previous_reading' => $previousReadingValue,
-            'consumption' => $request->reading - $previousReadingValue,
-            'rate_per_unit' => $request->rate_per_unit,
-            'total_amount' => ($request->reading - $previousReadingValue) * $request->rate_per_unit,
-            'notes' => $request->notes,
+            'consumption' => $request->input('reading') - $previousReadingValue,
+            'rate_per_unit' => $request->input('rate_per_unit'),
+            'total_amount' => ($request->input('reading') - $previousReadingValue) * $request->input('rate_per_unit'),
+            'notes' => $request->input('notes'),
             'read_by' => auth()->id(),
         ]);
 
         // Update meter with new reading
         $meter->update([
-            'last_reading' => $request->reading,
-            'last_reading_date' => $request->reading_date,
+            'last_reading' => $request->input('reading'),
+            'last_reading_date' => $request->input('reading_date'),
         ]);
 
         activity()

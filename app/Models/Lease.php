@@ -103,7 +103,7 @@ class Lease extends Model
      */
     public function isTerminated(): bool
     {
-        return $this->status === 'terminated';
+        return $this->getAttribute('status') === 'terminated';
     }
 
     /**
@@ -111,7 +111,7 @@ class Lease extends Model
      */
     public function isCancelled(): bool
     {
-        return $this->status === 'cancelled';
+        return $this->getAttribute('status') === 'cancelled';
     }
 
     /**

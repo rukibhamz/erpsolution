@@ -98,7 +98,7 @@ class JournalEntry extends Model
      */
     public function isCancelled(): bool
     {
-        return $this->status === 'cancelled';
+        return $this->getAttribute('status') === 'cancelled';
     }
 
     /**
@@ -122,7 +122,7 @@ class JournalEntry extends Model
      */
     public function isBalanced(): bool
     {
-        return abs($this->total_debit - $this->total_credit) < 0.01;
+        return abs($this->getAttribute('total_debit') - $this->getAttribute('total_credit')) < 0.01;
     }
 
     /**

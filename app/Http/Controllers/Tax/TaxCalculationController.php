@@ -20,7 +20,7 @@ class TaxCalculationController extends Controller
 
         // Search functionality
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('base_amount', 'like', "%{$search}%")
                   ->orWhere('tax_amount', 'like', "%{$search}%")
@@ -30,20 +30,20 @@ class TaxCalculationController extends Controller
 
         // Filter by tax type
         if ($request->filled('tax_type_id')) {
-            $query->where('tax_type_id', $request->tax_type_id);
+            $query->where('tax_type_id', $request->input('tax_type_id'));
         }
 
         // Filter by status
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->where('status', $request->input('status'));
         }
 
         // Filter by date range
         if ($request->filled('start_date')) {
-            $query->where('calculation_date', '>=', $request->start_date);
+            $query->where('calculation_date', '>=', $request->input('start_date'));
         }
         if ($request->filled('end_date')) {
-            $query->where('calculation_date', '<=', $request->end_date);
+            $query->where('calculation_date', '<=', $request->input('end_date'));
         }
 
         $taxCalculations = $query->latest('calculation_date')->paginate(15);
@@ -75,18 +75,18 @@ class TaxCalculationController extends Controller
             'notes' => 'nullable|string|max:1000',
         ]);
 
-        $taxType = TaxType::findOrFail($request->tax_type_id);
+        $taxType = TaxType::findOrFail($request->input('tax_type_id'));
         
         $taxCalculation = TaxCalculation::create([
-            'tax_type_id' => $request->tax_type_id,
-            'base_amount' => $request->base_amount,
+            'tax_type_id' => $request->input('tax_type_id'),
+            'base_amount' => $request->input('base_amount'),
             'tax_rate' => $taxType->rate,
-            'tax_amount' => $taxType->calculateTax($request->base_amount),
-            'calculation_date' => $request->calculation_date,
-            'period_start' => $request->period_start,
-            'period_end' => $request->period_end,
+            'tax_amount' => $taxType->calculateTax($request->input('base_amount')),
+            'calculation_date' => $request->input('calculation_date'),
+            'period_start' => $request->input('period_start'),
+            'period_end' => $request->input('period_end'),
             'status' => 'calculated',
-            'notes' => $request->notes,
+            'notes' => $request->input('notes'),
             'created_by' => auth()->id(),
         ]);
 
@@ -131,7 +131,7 @@ class TaxCalculationController extends Controller
             'notes' => 'nullable|string|max:1000',
         ]);
 
-        $taxType = TaxType::findOrFail($request->tax_type_id);
+        $taxType = TaxType::findOrFail($request->input('tax_type_id'));
 
         $taxCalculation->update([
             'tax_type_id' => $request->tax_type_id,

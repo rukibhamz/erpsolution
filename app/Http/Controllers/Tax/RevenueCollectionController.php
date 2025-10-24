@@ -20,7 +20,7 @@ class RevenueCollectionController extends Controller
 
         // Search functionality
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('collection_reference', 'like', "%{$search}%")
                   ->orWhere('description', 'like', "%{$search}%")
@@ -33,17 +33,17 @@ class RevenueCollectionController extends Controller
 
         // Filter by property
         if ($request->filled('property_id')) {
-            $query->where('property_id', $request->property_id);
+            $query->where('property_id', $request->input('property_id'));
         }
 
         // Filter by collection type
         if ($request->filled('collection_type')) {
-            $query->where('collection_type', $request->collection_type);
+            $query->where('collection_type', $request->input('collection_type'));
         }
 
         // Filter by payment status
         if ($request->filled('payment_status')) {
-            $query->where('payment_status', $request->payment_status);
+            $query->where('payment_status', $request->input('payment_status'));
         }
 
         // Filter by verification status
@@ -57,10 +57,10 @@ class RevenueCollectionController extends Controller
 
         // Filter by date range
         if ($request->filled('start_date')) {
-            $query->where('collection_date', '>=', $request->start_date);
+            $query->where('collection_date', '>=', $request->input('start_date'));
         }
         if ($request->filled('end_date')) {
-            $query->where('collection_date', '<=', $request->end_date);
+            $query->where('collection_date', '<=', $request->input('end_date'));
         }
 
         $revenueCollections = $query->latest('collection_date')->paginate(15);
@@ -102,16 +102,16 @@ class RevenueCollectionController extends Controller
 
         $revenueCollection = RevenueCollection::create([
             'collection_reference' => $collectionReference,
-            'property_id' => $request->property_id,
-            'collection_type' => $request->collection_type,
-            'amount' => $request->amount,
-            'collection_date' => $request->collection_date,
-            'due_date' => $request->due_date,
+            'property_id' => $request->input('property_id'),
+            'collection_type' => $request->input('collection_type'),
+            'amount' => $request->input('amount'),
+            'collection_date' => $request->input('collection_date'),
+            'due_date' => $request->input('due_date'),
             'payment_status' => 'pending',
-            'payment_method' => $request->payment_method,
-            'reference_number' => $request->reference_number,
-            'description' => $request->description,
-            'notes' => $request->notes,
+            'payment_method' => $request->input('payment_method'),
+            'reference_number' => $request->input('reference_number'),
+            'description' => $request->input('description'),
+            'notes' => $request->input('notes'),
             'collected_by' => auth()->id(),
         ]);
 

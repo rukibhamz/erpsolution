@@ -103,7 +103,7 @@ class Booking extends Model
      */
     public function isCancelled(): bool
     {
-        return $this->booking_status === 'cancelled';
+        return $this->getAttribute('booking_status') === 'cancelled';
     }
 
     /**
@@ -111,7 +111,7 @@ class Booking extends Model
      */
     public function isPaid(): bool
     {
-        return $this->payment_status === 'paid';
+        return $this->getAttribute('payment_status') === 'paid';
     }
 
     /**
@@ -119,7 +119,7 @@ class Booking extends Model
      */
     public function isPartialPayment(): bool
     {
-        return $this->payment_status === 'partial';
+        return $this->getAttribute('payment_status') === 'partial';
     }
 
     /**

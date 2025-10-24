@@ -194,9 +194,9 @@ class UtilityMeterController extends Controller
      */
     public function toggleStatus(UtilityMeter $utilityMeter): RedirectResponse
     {
-        $utilityMeter->update(['is_active' => !$utilityMeter->is_active]);
+        $utilityMeter->update(['is_active' => !$utilityMeter->getAttribute('is_active')]);
 
-        $status = $utilityMeter->is_active ? 'activated' : 'deactivated';
+        $status = $utilityMeter->getAttribute('is_active') ? 'activated' : 'deactivated';
 
         activity()
             ->causedBy(auth()->user())

@@ -105,7 +105,7 @@ class Account extends Model
                 WHEN transaction_type = "income" THEN amount 
                 WHEN transaction_type = "expense" THEN -amount 
                 WHEN transaction_type = "transfer" THEN 
-                    CASE WHEN account_id = ' . $this->id . ' THEN amount ELSE -amount END
+                    CASE WHEN account_id = ' . $this->getKey() . ' THEN amount ELSE -amount END
                 ELSE 0 
             END'));
 

@@ -26,20 +26,20 @@ class UserController extends Controller
         // Apply filters
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
-                $q->where('name', 'like', '%' . $request->search . '%')
-                  ->orWhere('email', 'like', '%' . $request->search . '%')
-                  ->orWhere('phone', 'like', '%' . $request->search . '%');
+                $q->where('name', 'like', '%' . $request->input('search') . '%')
+                  ->orWhere('email', 'like', '%' . $request->input('search') . '%')
+                  ->orWhere('phone', 'like', '%' . $request->input('search') . '%');
             });
         }
 
         if ($request->filled('role')) {
             $query->whereHas('roles', function ($q) use ($request) {
-                $q->where('name', $request->role);
+                $q->where('name', $request->input('role'));
             });
         }
 
         if ($request->filled('is_active')) {
-            $query->where('is_active', $request->is_active);
+            $query->where('is_active', $request->input('is_active'));
         }
 
         $users = $query->latest()->paginate(15);
@@ -133,7 +133,7 @@ class UserController extends Controller
         
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->getKey())],
             'password' => 'nullable|string|min:8|confirmed',
             'phone' => 'nullable|string|max:20',
             'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
@@ -145,8 +145,8 @@ class UserController extends Controller
         // Handle avatar upload
         if ($request->hasFile('avatar')) {
             // Delete old avatar
-            if ($user->avatar) {
-                Storage::disk('public')->delete($user->avatar);
+            if ($user->getAttribute('avatar')) {
+                Storage::disk('public')->delete($user->getAttribute('avatar'));
             }
             
             $path = $request->file('avatar')->store('avatars', 'public');
@@ -190,14 +190,14 @@ class UserController extends Controller
         $this->authorize('delete', $user);
         
         // Prevent deletion of current user
-        if ($user->id === auth()->id()) {
+        if ($user->getKey() === auth()->id()) {
             return redirect()->route('admin.users.index')
                 ->with('error', 'Cannot delete your own account.');
         }
 
         // Delete avatar if exists
-        if ($user->avatar) {
-            Storage::disk('public')->delete($user->avatar);
+        if ($user->getAttribute('avatar')) {
+            Storage::disk('public')->delete($user->getAttribute('avatar'));
         }
 
         $user->delete();
@@ -219,14 +219,14 @@ class UserController extends Controller
         $this->authorize('update', $user);
         
         // Prevent deactivating current user
-        if ($user->id === auth()->id()) {
+        if ($user->getKey() === auth()->id()) {
             return redirect()->route('admin.users.index')
                 ->with('error', 'Cannot deactivate your own account.');
         }
 
-        $user->update(['is_active' => !$user->is_active]);
+        $user->update(['is_active' => !$user->getAttribute('is_active')]);
 
-        $status = $user->is_active ? 'activated' : 'deactivated';
+        $status = $user->getAttribute('is_active') ? 'activated' : 'deactivated';
 
         activity()
             ->causedBy(auth()->user())

@@ -25,22 +25,22 @@ class InventoryController extends Controller
         // Apply filters
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
-                $q->where('item_name', 'like', '%' . $request->search . '%')
-                  ->orWhere('item_code', 'like', '%' . $request->search . '%')
-                  ->orWhere('description', 'like', '%' . $request->search . '%');
+                $q->where('item_name', 'like', '%' . $request->input('search') . '%')
+                  ->orWhere('item_code', 'like', '%' . $request->input('search') . '%')
+                  ->orWhere('description', 'like', '%' . $request->input('search') . '%');
             });
         }
 
         if ($request->filled('category_id')) {
-            $query->where('category_id', $request->category_id);
+            $query->where('category_id', $request->input('category_id'));
         }
 
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->where('status', $request->input('status'));
         }
 
         if ($request->filled('filter')) {
-            switch ($request->filter) {
+            switch ($request->input('filter')) {
                 case 'low_stock':
                     $query->whereRaw('current_stock <= reorder_level');
                     break;
@@ -174,7 +174,7 @@ class InventoryController extends Controller
         $this->authorize('delete', $inventoryItem);
         
         // Check if item has stock
-        if ($inventoryItem->current_stock > 0) {
+        if ($inventoryItem->getAttribute('current_stock') > 0) {
             return redirect()->route('admin.inventory.index')
                 ->with('error', 'Cannot delete inventory item with existing stock.');
         }
@@ -211,7 +211,7 @@ class InventoryController extends Controller
 
         // Check if removal would result in negative stock
         if ($validated['adjustment_type'] === 'remove' && 
-            ($inventoryItem->current_stock - $quantity) < 0) {
+            ($inventoryItem->getAttribute('current_stock') - $quantity) < 0) {
             return redirect()->back()
                 ->with('error', 'Insufficient stock for this adjustment.');
         }
@@ -234,7 +234,7 @@ class InventoryController extends Controller
     {
         $this->authorize('update', $inventoryItem);
         
-        $newStatus = $inventoryItem->status === 'active' ? 'inactive' : 'active';
+        $newStatus = $inventoryItem->getAttribute('status') === 'active' ? 'inactive' : 'active';
         $inventoryItem->update(['status' => $newStatus]);
 
         activity()

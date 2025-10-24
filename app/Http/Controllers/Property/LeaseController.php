@@ -29,26 +29,26 @@ class LeaseController extends Controller
         // Apply filters
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
-                $q->where('lease_reference', 'like', '%' . $request->search . '%')
-                  ->orWhere('tenant_name', 'like', '%' . $request->search . '%')
-                  ->orWhere('tenant_email', 'like', '%' . $request->search . '%');
+                $q->where('lease_reference', 'like', '%' . $request->input('search') . '%')
+                  ->orWhere('tenant_name', 'like', '%' . $request->input('search') . '%')
+                  ->orWhere('tenant_email', 'like', '%' . $request->input('search') . '%');
             });
         }
 
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->where('status', $request->input('status'));
         }
 
         if ($request->filled('property_id')) {
-            $query->where('property_id', $request->property_id);
+            $query->where('property_id', $request->input('property_id'));
         }
 
         if ($request->filled('date_from')) {
-            $query->where('start_date', '>=', $request->date_from);
+            $query->where('start_date', '>=', $request->input('date_from'));
         }
 
         if ($request->filled('date_to')) {
-            $query->where('start_date', '<=', $request->date_to);
+            $query->where('start_date', '<=', $request->input('date_to'));
         }
 
         $leases = $query->latest()->paginate(15);

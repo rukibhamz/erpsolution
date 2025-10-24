@@ -49,11 +49,11 @@ class EventController extends Controller
         }
 
         if ($request->filled('date_from')) {
-            $query->where('start_date', '>=', $request->date_from);
+            $query->where('start_date', '>=', $request->input('date_from'));
         }
 
         if ($request->filled('date_to')) {
-            $query->where('start_date', '<=', $request->date_to);
+            $query->where('start_date', '<=', $request->input('date_to'));
         }
 
         $events = $query->latest()->paginate(15);
@@ -251,8 +251,8 @@ class EventController extends Controller
             'image_index' => 'required|integer|min:0'
         ]);
 
-        $imageIndex = $request->image_index;
-        $images = $event->images ?? [];
+        $imageIndex = $request->input('image_index');
+        $images = $event->getAttribute('images') ?? [];
 
         // SECURITY FIX: Validate image index exists
         if (!isset($images[$imageIndex])) {
@@ -293,7 +293,7 @@ class EventController extends Controller
             'completed' => 'draft'
         ];
 
-        $newStatus = $statusTransitions[$event->status] ?? 'draft';
+        $newStatus = $statusTransitions[$event->getAttribute('status')] ?? 'draft';
         $event->update(['status' => $newStatus]);
 
         $statusMessages = [

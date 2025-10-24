@@ -220,7 +220,7 @@ class PropertyController extends Controller
             'image_index' => 'required|integer|min:0'
         ]);
 
-        $imageIndex = $request->image_index;
+        $imageIndex = $request->input('image_index');
         $images = $property->images ?? [];
 
         // SECURITY FIX: Validate image index exists
@@ -254,7 +254,7 @@ class PropertyController extends Controller
     {
         $propertyStatusService = new PropertyStatusService();
         
-        $newStatus = $property->status === 'available' ? 'unavailable' : 'available';
+        $newStatus = $property->getAttribute('status') === 'available' ? 'unavailable' : 'available';
         
         // Validate status change
         $errors = $propertyStatusService->validateStatusChange($property, $newStatus);
@@ -295,7 +295,7 @@ class PropertyController extends Controller
     {
         return DB::transaction(function () {
             $lastProperty = Property::orderBy('id', 'desc')->first();
-            $nextNumber = $lastProperty ? (int) substr($lastProperty->property_code, 3) + 1 : 1;
+            $nextNumber = $lastProperty ? (int) substr($lastProperty->getAttribute('property_code'), 3) + 1 : 1;
             
             $propertyCode = 'PRP' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
             

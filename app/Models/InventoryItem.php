@@ -110,7 +110,7 @@ class InventoryItem extends Model
      */
     public function getTotalValueAttribute(): float
     {
-        return $this->current_stock * $this->unit_price;
+        return $this->getAttribute('current_stock') * $this->getAttribute('unit_price');
     }
 
     /**

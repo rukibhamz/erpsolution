@@ -20,7 +20,7 @@ class RepairController extends Controller
 
         // Search functionality
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('repair_reference', 'like', "%{$search}%")
                   ->orWhere('description', 'like', "%{$search}%")
@@ -30,20 +30,20 @@ class RepairController extends Controller
 
         // Filter by repair status
         if ($request->filled('repair_status')) {
-            $query->where('repair_status', $request->repair_status);
+            $query->where('repair_status', $request->input('repair_status'));
         }
 
         // Filter by item
         if ($request->filled('item_id')) {
-            $query->where('item_id', $request->item_id);
+            $query->where('item_id', $request->input('item_id'));
         }
 
         // Filter by date range
         if ($request->filled('start_date')) {
-            $query->where('repair_date', '>=', $request->start_date);
+            $query->where('repair_date', '>=', $request->input('start_date'));
         }
         if ($request->filled('end_date')) {
-            $query->where('repair_date', '<=', $request->end_date);
+            $query->where('repair_date', '<=', $request->input('end_date'));
         }
 
         $repairs = $query->latest('repair_date')->paginate(15);
@@ -58,7 +58,7 @@ class RepairController extends Controller
     public function create(Request $request): View
     {
         $inventoryItems = InventoryItem::active()->get();
-        $selectedItem = $request->item_id ? InventoryItem::find($request->item_id) : null;
+        $selectedItem = $request->input('item_id') ? InventoryItem::find($request->input('item_id')) : null;
         
         return view('inventory.repairs.create', compact('inventoryItems', 'selectedItem'));
     }
@@ -84,17 +84,17 @@ class RepairController extends Controller
         $repairReference = 'REP-' . str_pad(Repair::count() + 1, 6, '0', STR_PAD_LEFT);
 
         $repair = Repair::create([
-            'item_id' => $request->item_id,
+            'item_id' => $request->input('item_id'),
             'repair_reference' => $repairReference,
-            'description' => $request->description,
-            'repair_date' => $request->repair_date,
-            'cost' => $request->cost,
-            'repair_status' => $request->repair_status,
-            'technician' => $request->technician,
-            'technician_contact' => $request->technician_contact,
-            'warranty_period' => $request->warranty_period,
-            'warranty_expiry' => $request->warranty_period ? now()->addDays($request->warranty_period) : null,
-            'notes' => $request->notes,
+            'description' => $request->input('description'),
+            'repair_date' => $request->input('repair_date'),
+            'cost' => $request->input('cost'),
+            'repair_status' => $request->input('repair_status'),
+            'technician' => $request->input('technician'),
+            'technician_contact' => $request->input('technician_contact'),
+            'warranty_period' => $request->input('warranty_period'),
+            'warranty_expiry' => $request->input('warranty_period') ? now()->addDays($request->input('warranty_period')) : null,
+            'notes' => $request->input('notes'),
             'created_by' => auth()->id(),
         ]);
 

@@ -104,7 +104,7 @@ class UtilityMeter extends Model
      */
     public function isUnderMaintenance(): bool
     {
-        return $this->status === 'maintenance';
+        return $this->getAttribute('status') === 'maintenance';
     }
 
     /**
@@ -112,7 +112,7 @@ class UtilityMeter extends Model
      */
     public function isFaulty(): bool
     {
-        return $this->status === 'faulty';
+        return $this->getAttribute('status') === 'faulty';
     }
 
     /**
@@ -168,11 +168,11 @@ class UtilityMeter extends Model
      */
     public function getDaysSinceLastReadingAttribute(): int
     {
-        if (!$this->last_reading_date) {
+        if (!$this->getAttribute('last_reading_date')) {
             return 0;
         }
         
-        return now()->diffInDays($this->last_reading_date);
+        return now()->diffInDays($this->getAttribute('last_reading_date'));
     }
 
     /**
@@ -180,7 +180,7 @@ class UtilityMeter extends Model
      */
     public function needsReading(): bool
     {
-        return $this->days_since_last_reading > 30; // More than 30 days since last reading
+        return $this->getAttribute('days_since_last_reading') > 30; // More than 30 days since last reading
     }
 
     /**

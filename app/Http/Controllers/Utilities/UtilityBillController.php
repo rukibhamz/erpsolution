@@ -22,7 +22,7 @@ class UtilityBillController extends Controller
 
         // Search functionality
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('bill_number', 'like', "%{$search}%")
                   ->orWhere('notes', 'like', "%{$search}%")
@@ -34,25 +34,25 @@ class UtilityBillController extends Controller
 
         // Filter by utility type
         if ($request->filled('utility_type_id')) {
-            $query->where('utility_type_id', $request->utility_type_id);
+            $query->where('utility_type_id', $request->input('utility_type_id'));
         }
 
         // Filter by property
         if ($request->filled('property_id')) {
-            $query->where('property_id', $request->property_id);
+            $query->where('property_id', $request->input('property_id'));
         }
 
         // Filter by payment status
         if ($request->filled('payment_status')) {
-            $query->where('payment_status', $request->payment_status);
+            $query->where('payment_status', $request->input('payment_status'));
         }
 
         // Filter by date range
         if ($request->filled('start_date')) {
-            $query->where('billing_period_start', '>=', $request->start_date);
+            $query->where('billing_period_start', '>=', $request->input('start_date'));
         }
         if ($request->filled('end_date')) {
-            $query->where('billing_period_end', '<=', $request->end_date);
+            $query->where('billing_period_end', '<=', $request->input('end_date'));
         }
 
         $utilityBills = $query->latest('billing_period_start')->paginate(15);
@@ -70,7 +70,7 @@ class UtilityBillController extends Controller
         $properties = Property::active()->get();
         $utilityTypes = UtilityType::active()->get();
         $utilityMeters = UtilityMeter::active()->get();
-        $selectedProperty = $request->property_id ? Property::find($request->property_id) : null;
+        $selectedProperty = $request->input('property_id') ? Property::find($request->input('property_id')) : null;
         
         return view('utilities.bills.create', compact('properties', 'utilityTypes', 'utilityMeters', 'selectedProperty'));
     }
@@ -98,21 +98,21 @@ class UtilityBillController extends Controller
 
         $utilityBill = UtilityBill::create([
             'bill_number' => $billNumber,
-            'property_id' => $request->property_id,
-            'utility_type_id' => $request->utility_type_id,
-            'meter_id' => $request->meter_id,
-            'billing_period_start' => $request->billing_period_start,
-            'billing_period_end' => $request->billing_period_end,
-            'previous_reading' => $request->previous_reading,
-            'current_reading' => $request->current_reading,
-            'consumption' => $request->current_reading - $request->previous_reading,
-            'rate_per_unit' => $request->rate_per_unit,
-            'base_amount' => ($request->current_reading - $request->previous_reading) * $request->rate_per_unit,
-            'tax_amount' => (($request->current_reading - $request->previous_reading) * $request->rate_per_unit) * 0.05,
-            'total_amount' => (($request->current_reading - $request->previous_reading) * $request->rate_per_unit) * 1.05,
-            'due_date' => $request->due_date,
+            'property_id' => $request->input('property_id'),
+            'utility_type_id' => $request->input('utility_type_id'),
+            'meter_id' => $request->input('meter_id'),
+            'billing_period_start' => $request->input('billing_period_start'),
+            'billing_period_end' => $request->input('billing_period_end'),
+            'previous_reading' => $request->input('previous_reading'),
+            'current_reading' => $request->input('current_reading'),
+            'consumption' => $request->input('current_reading') - $request->input('previous_reading'),
+            'rate_per_unit' => $request->input('rate_per_unit'),
+            'base_amount' => ($request->input('current_reading') - $request->input('previous_reading')) * $request->input('rate_per_unit'),
+            'tax_amount' => (($request->input('current_reading') - $request->input('previous_reading')) * $request->input('rate_per_unit')) * 0.05,
+            'total_amount' => (($request->input('current_reading') - $request->input('previous_reading')) * $request->input('rate_per_unit')) * 1.05,
+            'due_date' => $request->input('due_date'),
             'payment_status' => 'pending',
-            'notes' => $request->notes,
+            'notes' => $request->input('notes'),
             'created_by' => auth()->id(),
         ]);
 
