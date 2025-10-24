@@ -5,6 +5,9 @@ namespace App\Http\Controllers\Property;
 use App\Http\Controllers\Controller;
 use App\Models\Property;
 use App\Models\PropertyType;
+use App\Services\PropertyStatusService;
+use App\Http\Requests\Property\StorePropertyRequest;
+use App\Http\Requests\Property\UpdatePropertyRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -67,26 +70,9 @@ class PropertyController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request): RedirectResponse
+    public function store(StorePropertyRequest $request): RedirectResponse
     {
-        $this->authorize('create', Property::class);
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'property_type_id' => 'required|exists:property_types,id',
-            'address' => 'required|string|max:255',
-            'city' => 'required|string|max:100',
-            'state' => 'required|string|max:100',
-            'country' => 'nullable|string|max:100',
-            'postal_code' => 'nullable|string|max:20',
-            'rent_amount' => 'required|numeric|min:0',
-            'deposit_amount' => 'nullable|numeric|min:0',
-            'bedrooms' => 'nullable|integer|min:0',
-            'bathrooms' => 'nullable|integer|min:0',
-            'area_sqft' => 'nullable|numeric|min:0',
-            'amenities' => 'nullable|array',
-            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        ]);
+        $validated = $request->validated();
 
         // Generate unique property code
         $propertyCode = $this->generatePropertyCode();
@@ -138,27 +124,9 @@ class PropertyController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Property $property): RedirectResponse
+    public function update(UpdatePropertyRequest $request, Property $property): RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'property_type_id' => 'required|exists:property_types,id',
-            'address' => 'required|string|max:255',
-            'city' => 'required|string|max:100',
-            'state' => 'required|string|max:100',
-            'country' => 'nullable|string|max:100',
-            'postal_code' => 'nullable|string|max:20',
-            'rent_amount' => 'required|numeric|min:0',
-            'deposit_amount' => 'nullable|numeric|min:0',
-            'bedrooms' => 'nullable|integer|min:0',
-            'bathrooms' => 'nullable|integer|min:0',
-            'area_sqft' => 'nullable|numeric|min:0',
-            'amenities' => 'nullable|array',
-            'status' => ['required', Rule::in(['available', 'occupied', 'maintenance', 'unavailable'])],
-            'is_active' => 'boolean',
-            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        ]);
+        $validated = $request->validated();
 
         // Handle new image uploads
         $currentImages = $property->images ?? [];
@@ -249,11 +217,21 @@ class PropertyController extends Controller
     }
 
     /**
-     * Toggle property status
+     * BUSINESS LOGIC FIX: Toggle property status with proper validation
      */
     public function toggleStatus(Property $property): RedirectResponse
     {
+        $propertyStatusService = new PropertyStatusService();
+        
         $newStatus = $property->status === 'available' ? 'unavailable' : 'available';
+        
+        // Validate status change
+        $errors = $propertyStatusService->validateStatusChange($property, $newStatus);
+        
+        if (!empty($errors)) {
+            return redirect()->back()
+                ->with('error', implode(' ', $errors));
+        }
         
         $property->update(['status' => $newStatus]);
 
@@ -264,6 +242,18 @@ class PropertyController extends Controller
 
         return redirect()->back()
             ->with('success', "Property status updated to {$newStatus}.");
+    }
+
+    /**
+     * BUSINESS LOGIC FIX: Fix property status inconsistencies
+     */
+    public function fixStatusInconsistencies(): RedirectResponse
+    {
+        $propertyStatusService = new PropertyStatusService();
+        $fixed = $propertyStatusService->fixStatusInconsistencies();
+
+        return redirect()->back()
+            ->with('success', "Fixed status inconsistencies for " . count($fixed) . " properties.");
     }
 
     /**

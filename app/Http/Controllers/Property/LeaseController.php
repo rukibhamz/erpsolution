@@ -5,187 +5,160 @@ namespace App\Http\Controllers\Property;
 use App\Http\Controllers\Controller;
 use App\Models\Lease;
 use App\Models\Property;
-use App\Models\Tenant;
+use App\Services\LeaseManagementService;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\View\View;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class LeaseController extends Controller
 {
     /**
-     * Display a listing of leases.
+     * Display a listing of the resource.
      */
     public function index(Request $request): View
     {
-        $query = Lease::with(['property', 'tenant']);
+        $this->authorize('viewAny', Lease::class);
+        
+        $query = Lease::with(['property']);
 
-        // Search functionality
+        // Apply filters
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('lease_number', 'like', "%{$search}%")
-                  ->orWhereHas('property', function ($q) use ($search) {
-                      $q->where('name', 'like', "%{$search}%");
-                  })
-                  ->orWhereHas('tenant', function ($q) use ($search) {
-                      $q->where('first_name', 'like', "%{$search}%")
-                        ->orWhere('last_name', 'like', "%{$search}%");
-                  });
+            $query->where(function ($q) use ($request) {
+                $q->where('lease_reference', 'like', '%' . $request->search . '%')
+                  ->orWhere('tenant_name', 'like', '%' . $request->search . '%')
+                  ->orWhere('tenant_email', 'like', '%' . $request->search . '%');
             });
         }
 
-        // Filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        // Filter by property
         if ($request->filled('property_id')) {
             $query->where('property_id', $request->property_id);
         }
 
-        // Filter by tenant
-        if ($request->filled('tenant_id')) {
-            $query->where('tenant_id', $request->tenant_id);
+        if ($request->filled('date_from')) {
+            $query->where('start_date', '>=', $request->date_from);
         }
 
-        // Filter by date range
-        if ($request->filled('start_date')) {
-            $query->where('start_date', '>=', $request->start_date);
-        }
-        if ($request->filled('end_date')) {
-            $query->where('end_date', '<=', $request->end_date);
+        if ($request->filled('date_to')) {
+            $query->where('start_date', '<=', $request->date_to);
         }
 
         $leases = $query->latest()->paginate(15);
-        $properties = Property::active()->get();
-        $tenants = Tenant::active()->get();
-
-        return view('property.leases.index', compact('leases', 'properties', 'tenants'));
-    }
-
-    /**
-     * Show the form for creating a new lease.
-     */
-    public function create(Request $request): View
-    {
         $properties = Property::available()->get();
-        $tenants = Tenant::active()->get();
-        
-        // Pre-select property or tenant if provided
-        $selectedProperty = $request->property_id ? Property::find($request->property_id) : null;
-        $selectedTenant = $request->tenant_id ? Tenant::find($request->tenant_id) : null;
 
-        return view('property.leases.create', compact('properties', 'tenants', 'selectedProperty', 'selectedTenant'));
+        return view('admin.leases.index', compact('leases', 'properties'));
     }
 
     /**
-     * Store a newly created lease.
+     * Show the form for creating a new resource.
+     */
+    public function create(): View
+    {
+        $this->authorize('create', Lease::class);
+        $properties = Property::available()->get();
+        return view('admin.leases.create', compact('properties'));
+    }
+
+    /**
+     * BUSINESS LOGIC FIX: Store lease with comprehensive validation
      */
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
+        $this->authorize('create', Lease::class);
+        
+        $validated = $request->validate([
             'property_id' => 'required|exists:properties,id',
-            'tenant_id' => 'required|exists:tenants,id',
+            'tenant_name' => 'required|string|max:255',
+            'tenant_email' => 'required|email|max:255',
+            'tenant_phone' => 'required|string|max:20',
+            'tenant_address' => 'required|string|max:500',
             'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'required|date|after:start_date',
             'monthly_rent' => 'required|numeric|min:0',
-            'deposit_amount' => 'nullable|numeric|min:0',
-            'late_fee_amount' => 'nullable|numeric|min:0',
-            'late_fee_days' => 'nullable|integer|min:1',
-            'rent_due_date' => 'nullable|integer|min:1|max:31',
-            'terms_and_conditions' => 'nullable|string',
-            'additional_charges' => 'nullable|array',
-            'auto_renewal' => 'boolean',
-            'renewal_notice_days' => 'nullable|integer|min:1',
+            'security_deposit' => 'required|numeric|min:0',
+            'late_fee' => 'nullable|numeric|min:0',
+            'grace_period_days' => 'nullable|integer|min:0|max:30',
+            'terms_conditions' => 'nullable|string|max:2000',
+            'notes' => 'nullable|string|max:1000',
         ]);
 
-        // Check if property is available
-        $property = Property::find($request->property_id);
-        if ($property->status !== 'available') {
+        $leaseService = new LeaseManagementService();
+        $result = $leaseService->createLease($validated);
+        
+        if ($result['success']) {
+            $lease = Lease::where('property_id', $validated['property_id'])
+                ->where('tenant_email', $validated['tenant_email'])
+                ->latest()
+                ->first();
+
+            activity()
+                ->causedBy(auth()->user())
+                ->performedOn($lease)
+                ->log('Lease created');
+
+            $message = 'Lease created successfully.';
+            if (!empty($result['warnings'])) {
+                $message .= ' Warnings: ' . implode(', ', $result['warnings']);
+            }
+
+            return redirect()->route('admin.leases.index')
+                ->with('success', $message);
+        } else {
             return redirect()->back()
-                ->with('error', 'Selected property is not available for lease.');
+                ->with('error', implode(', ', $result['errors']))
+                ->withInput();
         }
-
-        // Check if tenant already has an active lease
-        $existingLease = Lease::where('tenant_id', $request->tenant_id)
-            ->where('status', 'active')
-            ->where('start_date', '<=', now())
-            ->where('end_date', '>=', now())
-            ->exists();
-
-        if ($existingLease) {
-            return redirect()->back()
-                ->with('error', 'Tenant already has an active lease.');
-        }
-
-        // Generate lease number
-        $leaseNumber = 'LEASE-' . str_pad(Lease::count() + 1, 6, '0', STR_PAD_LEFT);
-
-        $leaseData = $request->except(['additional_charges']);
-        $leaseData['lease_number'] = $leaseNumber;
-        $leaseData['additional_charges'] = $request->additional_charges ?? [];
-        $leaseData['auto_renewal'] = $request->boolean('auto_renewal', false);
-
-        $lease = Lease::create($leaseData);
-
-        // Update property status to occupied
-        $property->update(['status' => 'occupied']);
-
-        activity()
-            ->causedBy(auth()->user())
-            ->performedOn($lease)
-            ->log('Lease created');
-
-        return redirect()->route('admin.leases.index')
-            ->with('success', 'Lease created successfully.');
     }
 
     /**
-     * Display the specified lease.
+     * Display the specified resource.
      */
     public function show(Lease $lease): View
     {
-        $lease->load(['property', 'tenant', 'payments']);
-        return view('property.leases.show', compact('lease'));
+        $this->authorize('view', $lease);
+        $lease->load(['property', 'payments']);
+        return view('admin.leases.show', compact('lease'));
     }
 
     /**
-     * Show the form for editing the lease.
+     * Show the form for editing the specified resource.
      */
     public function edit(Lease $lease): View
     {
-        $properties = Property::active()->get();
-        $tenants = Tenant::active()->get();
-        return view('property.leases.edit', compact('lease', 'properties', 'tenants'));
+        $this->authorize('update', $lease);
+        $properties = Property::available()->get();
+        return view('admin.leases.edit', compact('lease', 'properties'));
     }
 
     /**
-     * Update the specified lease.
+     * Update the specified resource in storage.
      */
     public function update(Request $request, Lease $lease): RedirectResponse
     {
-        $request->validate([
-            'property_id' => 'required|exists:properties,id',
-            'tenant_id' => 'required|exists:tenants,id',
+        $this->authorize('update', $lease);
+        
+        $validated = $request->validate([
+            'tenant_name' => 'required|string|max:255',
+            'tenant_email' => 'required|email|max:255',
+            'tenant_phone' => 'required|string|max:20',
+            'tenant_address' => 'required|string|max:500',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
             'monthly_rent' => 'required|numeric|min:0',
-            'deposit_amount' => 'nullable|numeric|min:0',
-            'late_fee_amount' => 'nullable|numeric|min:0',
-            'late_fee_days' => 'nullable|integer|min:1',
-            'rent_due_date' => 'nullable|integer|min:1|max:31',
-            'terms_and_conditions' => 'nullable|string',
-            'additional_charges' => 'nullable|array',
-            'auto_renewal' => 'boolean',
-            'renewal_notice_days' => 'nullable|integer|min:1',
+            'security_deposit' => 'required|numeric|min:0',
+            'late_fee' => 'nullable|numeric|min:0',
+            'grace_period_days' => 'nullable|integer|min:0|max:30',
+            'status' => ['required', Rule::in(['draft', 'active', 'expired', 'terminated', 'cancelled'])],
+            'terms_conditions' => 'nullable|string|max:2000',
+            'notes' => 'nullable|string|max:1000',
         ]);
 
-        $leaseData = $request->except(['additional_charges']);
-        $leaseData['additional_charges'] = $request->additional_charges ?? [];
-        $leaseData['auto_renewal'] = $request->boolean('auto_renewal', false);
-
-        $lease->update($leaseData);
+        $lease->update($validated);
 
         activity()
             ->causedBy(auth()->user())
@@ -197,88 +170,19 @@ class LeaseController extends Controller
     }
 
     /**
-     * Terminate the specified lease.
-     */
-    public function terminate(Request $request, Lease $lease): RedirectResponse
-    {
-        $request->validate([
-            'termination_date' => 'required|date|after_or_equal:today',
-            'termination_reason' => 'required|string|max:500',
-        ]);
-
-        $lease->update([
-            'status' => 'terminated',
-            'termination_date' => $request->termination_date,
-            'termination_reason' => $request->termination_reason,
-        ]);
-
-        // Update property status to available
-        $lease->property->update(['status' => 'available']);
-
-        activity()
-            ->causedBy(auth()->user())
-            ->performedOn($lease)
-            ->log('Lease terminated');
-
-        return redirect()->route('admin.leases.index')
-            ->with('success', 'Lease terminated successfully.');
-    }
-
-    /**
-     * Renew the specified lease.
-     */
-    public function renew(Request $request, Lease $lease): RedirectResponse
-    {
-        $request->validate([
-            'new_end_date' => 'required|date|after:today',
-            'new_monthly_rent' => 'nullable|numeric|min:0',
-        ]);
-
-        // Create new lease
-        $newLeaseNumber = 'LEASE-' . str_pad(Lease::count() + 1, 6, '0', STR_PAD_LEFT);
-        
-        $newLease = Lease::create([
-            'lease_number' => $newLeaseNumber,
-            'property_id' => $lease->property_id,
-            'tenant_id' => $lease->tenant_id,
-            'start_date' => $lease->end_date->addDay(),
-            'end_date' => $request->new_end_date,
-            'monthly_rent' => $request->new_monthly_rent ?? $lease->monthly_rent,
-            'deposit_amount' => $lease->deposit_amount,
-            'late_fee_amount' => $lease->late_fee_amount,
-            'late_fee_days' => $lease->late_fee_days,
-            'rent_due_date' => $lease->rent_due_date,
-            'terms_and_conditions' => $lease->terms_and_conditions,
-            'additional_charges' => $lease->additional_charges,
-            'auto_renewal' => $lease->auto_renewal,
-            'renewal_notice_days' => $lease->renewal_notice_days,
-        ]);
-
-        // Mark old lease as renewed
-        $lease->update(['status' => 'renewed']);
-
-        activity()
-            ->causedBy(auth()->user())
-            ->performedOn($newLease)
-            ->log('Lease renewed');
-
-        return redirect()->route('admin.leases.index')
-            ->with('success', 'Lease renewed successfully.');
-    }
-
-    /**
-     * Remove the specified lease.
-     * BUG FIX: Store property reference BEFORE deleting the lease to prevent relationship issues
+     * Remove the specified resource from storage.
      */
     public function destroy(Lease $lease): RedirectResponse
     {
+        $this->authorize('delete', $lease);
+        
         // Check if lease has payments
         if ($lease->payments()->exists()) {
             return redirect()->route('admin.leases.index')
                 ->with('error', 'Cannot delete lease with payment records.');
         }
 
-        // Store property reference BEFORE deleting the lease
+        // BUSINESS LOGIC FIX: Store property reference BEFORE deleting the lease
         $property = $lease->property;
         $propertyId = $property->id;
 
@@ -294,5 +198,68 @@ class LeaseController extends Controller
 
         return redirect()->route('admin.leases.index')
             ->with('success', 'Lease deleted successfully.');
+    }
+
+    /**
+     * Activate lease
+     */
+    public function activate(Lease $lease): RedirectResponse
+    {
+        $this->authorize('update', $lease);
+        
+        $lease->update(['status' => 'active']);
+
+        activity()
+            ->causedBy(auth()->user())
+            ->performedOn($lease)
+            ->log('Lease activated');
+
+        return redirect()->back()
+            ->with('success', 'Lease activated successfully.');
+    }
+
+    /**
+     * BUSINESS LOGIC FIX: Terminate lease with proper validation
+     */
+    public function terminate(Lease $lease): RedirectResponse
+    {
+        $this->authorize('terminate', $lease);
+        
+        $leaseService = new LeaseManagementService();
+        $result = $leaseService->terminateLease($lease);
+        
+        if ($result['success']) {
+            activity()
+                ->causedBy(auth()->user())
+                ->performedOn($lease)
+                ->log('Lease terminated');
+
+            return redirect()->back()
+                ->with('success', 'Lease terminated successfully.');
+        } else {
+            return redirect()->back()
+                ->with('error', implode(', ', $result['errors']));
+        }
+    }
+
+    /**
+     * Cancel lease
+     */
+    public function cancel(Lease $lease): RedirectResponse
+    {
+        $this->authorize('update', $lease);
+        
+        $lease->update(['status' => 'cancelled']);
+
+        // Update property status to available
+        $lease->property->update(['status' => 'available']);
+
+        activity()
+            ->causedBy(auth()->user())
+            ->performedOn($lease)
+            ->log('Lease cancelled');
+
+        return redirect()->back()
+            ->with('success', 'Lease cancelled successfully.');
     }
 }

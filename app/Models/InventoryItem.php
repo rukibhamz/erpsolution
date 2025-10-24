@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -16,30 +15,22 @@ class InventoryItem extends Model
 
     protected $fillable = [
         'item_code',
-        'name',
+        'item_name',
         'description',
         'category_id',
-        'unit_of_measure',
-        'purchase_price',
-        'selling_price',
+        'unit_price',
         'current_stock',
-        'minimum_stock',
-        'maximum_stock',
-        'reorder_point',
+        'initial_stock',
+        'reorder_level',
         'supplier',
+        'supplier_contact',
         'location',
         'status',
-        'is_active',
+        'notes',
     ];
 
     protected $casts = [
-        'purchase_price' => 'decimal:2',
-        'selling_price' => 'decimal:2',
-        'current_stock' => 'integer',
-        'minimum_stock' => 'integer',
-        'maximum_stock' => 'integer',
-        'reorder_point' => 'integer',
-        'is_active' => 'boolean',
+        'unit_price' => 'decimal:2',
     ];
 
     /**
@@ -48,7 +39,7 @@ class InventoryItem extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['item_code', 'name', 'current_stock', 'status', 'is_active'])
+            ->logOnly(['item_name', 'current_stock', 'status', 'unit_price'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }
@@ -62,57 +53,24 @@ class InventoryItem extends Model
     }
 
     /**
-     * Get the stock movements for this item.
-     */
-    public function stockMovements(): HasMany
-    {
-        return $this->hasMany(StockMovement::class, 'item_id');
-    }
-
-    /**
-     * Get the repairs for this item.
-     */
-    public function repairs(): HasMany
-    {
-        return $this->hasMany(Repair::class, 'item_id');
-    }
-
-    /**
-     * Get the maintenance logs for this item.
-     */
-    public function maintenanceLogs(): HasMany
-    {
-        return $this->hasMany(MaintenanceLog::class, 'item_id');
-    }
-
-    /**
      * Get the item status badge color.
      */
     public function getStatusColorAttribute(): string
     {
         return match ($this->status) {
-            'available' => 'green',
-            'low_stock' => 'yellow',
-            'out_of_stock' => 'red',
-            'discontinued' => 'gray',
+            'active' => 'green',
+            'inactive' => 'gray',
+            'discontinued' => 'red',
             default => 'gray',
         };
     }
 
     /**
-     * Check if item is available.
+     * Check if item is active.
      */
-    public function isAvailable(): bool
+    public function isActive(): bool
     {
-        return $this->status === 'available';
-    }
-
-    /**
-     * Check if item is low stock.
-     */
-    public function isLowStock(): bool
-    {
-        return $this->status === 'low_stock';
+        return $this->status === 'active';
     }
 
     /**
@@ -120,97 +78,47 @@ class InventoryItem extends Model
      */
     public function isOutOfStock(): bool
     {
-        return $this->status === 'out_of_stock';
+        return $this->current_stock <= 0;
     }
 
     /**
-     * Check if item is discontinued.
+     * Check if item needs reorder.
      */
-    public function isDiscontinued(): bool
+    public function needsReorder(): bool
     {
-        return $this->status === 'discontinued';
+        return $this->current_stock <= $this->reorder_level && $this->current_stock > 0;
     }
 
     /**
-     * Check if item needs reordering.
+     * Check if item is low stock.
      */
-    public function needsReordering(): bool
+    public function isLowStock(): bool
     {
-        return $this->current_stock <= $this->reorder_point;
+        return $this->current_stock <= $this->reorder_level;
     }
 
     /**
-     * Get the total value of current stock.
+     * Get formatted unit price.
      */
-    public function getStockValueAttribute(): float
+    public function getFormattedUnitPriceAttribute(): string
     {
-        return $this->current_stock * $this->purchase_price;
+        return '₦' . number_format($this->unit_price, 2);
     }
 
     /**
-     * Get the formatted stock value.
+     * Get total value.
      */
-    public function getFormattedStockValueAttribute(): string
+    public function getTotalValueAttribute(): float
     {
-        return '₦' . number_format($this->stock_value, 2);
+        return $this->current_stock * $this->unit_price;
     }
 
     /**
-     * Update item status based on stock level.
+     * Get formatted total value.
      */
-    public function updateStatus(): void
+    public function getFormattedTotalValueAttribute(): string
     {
-        if ($this->current_stock <= 0) {
-            $this->update(['status' => 'out_of_stock']);
-        } elseif ($this->current_stock <= $this->minimum_stock) {
-            $this->update(['status' => 'low_stock']);
-        } else {
-            $this->update(['status' => 'available']);
-        }
-    }
-
-    /**
-     * Add stock to the item.
-     */
-    public function addStock(int $quantity, string $reason = 'Stock added'): void
-    {
-        $this->current_stock += $quantity;
-        $this->save();
-        
-        // Create stock movement record
-        StockMovement::create([
-            'item_id' => $this->id,
-            'movement_type' => 'in',
-            'quantity' => $quantity,
-            'reason' => $reason,
-            'created_by' => auth()->id(),
-        ]);
-        
-        $this->updateStatus();
-    }
-
-    /**
-     * Remove stock from the item.
-     */
-    public function removeStock(int $quantity, string $reason = 'Stock removed'): void
-    {
-        if ($this->current_stock < $quantity) {
-            throw new \Exception('Insufficient stock');
-        }
-        
-        $this->current_stock -= $quantity;
-        $this->save();
-        
-        // Create stock movement record
-        StockMovement::create([
-            'item_id' => $this->id,
-            'movement_type' => 'out',
-            'quantity' => $quantity,
-            'reason' => $reason,
-            'created_by' => auth()->id(),
-        ]);
-        
-        $this->updateStatus();
+        return '₦' . number_format($this->total_value, 2);
     }
 
     /**
@@ -218,15 +126,7 @@ class InventoryItem extends Model
      */
     public function scopeActive($query)
     {
-        return $query->where('is_active', true);
-    }
-
-    /**
-     * Scope for items by status.
-     */
-    public function scopeByStatus($query, string $status)
-    {
-        return $query->where('status', $status);
+        return $query->where('status', 'active');
     }
 
     /**
@@ -234,7 +134,7 @@ class InventoryItem extends Model
      */
     public function scopeLowStock($query)
     {
-        return $query->where('current_stock', '<=', DB::raw('minimum_stock'));
+        return $query->whereRaw('current_stock <= reorder_level');
     }
 
     /**
@@ -250,6 +150,6 @@ class InventoryItem extends Model
      */
     public function scopeNeedsReorder($query)
     {
-        return $query->where('current_stock', '<=', DB::raw('reorder_point'));
+        return $query->whereRaw('current_stock <= reorder_level AND current_stock > 0');
     }
 }

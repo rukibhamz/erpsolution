@@ -4,110 +4,128 @@ namespace App\Http\Controllers\Booking;
 
 use App\Http\Controllers\Controller;
 use App\Models\Event;
-use App\Models\EventCategory;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\View\View;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Gate;
 
 class EventController extends Controller
 {
     /**
-     * Display a listing of events.
+     * Display a listing of the resource.
      */
     public function index(Request $request): View
     {
-        $query = Event::with('category');
+        $this->authorize('viewAny', Event::class);
+        
+        $query = Event::query();
 
-        // Search functionality
+        // Apply filters
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
-                  ->orWhere('location', 'like', "%{$search}%");
+            $query->where(function ($q) use ($request) {
+                $q->where('title', 'like', '%' . $request->search . '%')
+                  ->orWhere('event_reference', 'like', '%' . $request->search . '%')
+                  ->orWhere('venue', 'like', '%' . $request->search . '%');
             });
         }
 
-        // Filter by category
-        if ($request->filled('category_id')) {
-            $query->where('category_id', $request->category_id);
-        }
-
-        // Filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        // Filter by date range
-        if ($request->filled('start_date')) {
-            $query->where('start_date', '>=', $request->start_date);
-        }
-        if ($request->filled('end_date')) {
-            $query->where('start_date', '<=', $request->end_date);
+        if ($request->filled('city')) {
+            $query->where('city', $request->city);
         }
 
-        // Filter by visibility
-        if ($request->filled('is_public')) {
-            $query->where('is_public', $request->boolean('is_public'));
+        if ($request->filled('min_price')) {
+            $query->where('price', '>=', $request->min_price);
+        }
+
+        if ($request->filled('max_price')) {
+            $query->where('price', '<=', $request->max_price);
+        }
+
+        if ($request->filled('date_from')) {
+            $query->where('start_date', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->where('start_date', '<=', $request->date_to);
         }
 
         $events = $query->latest()->paginate(15);
-        $categories = EventCategory::active()->get();
 
-        return view('booking.events.index', compact('events', 'categories'));
+        return view('admin.events.index', compact('events'));
     }
 
     /**
-     * Show the form for creating a new event.
+     * Show the form for creating a new resource.
      */
     public function create(): View
     {
-        $categories = EventCategory::active()->get();
-        return view('booking.events.create', compact('categories'));
+        $this->authorize('create', Event::class);
+        return view('admin.events.create');
     }
 
     /**
-     * Store a newly created event.
+     * Store a newly created resource in storage.
      */
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
+        $this->authorize('create', Event::class);
+        
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'category_id' => 'required|exists:event_categories,id',
-            'location' => 'required|string|max:255',
+            'short_description' => 'nullable|string|max:500',
             'start_date' => 'required|date|after_or_equal:today',
-            'end_date' => 'required|date|after:start_date',
-            'capacity' => 'required|integer|min:1',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'start_time' => 'required',
+            'end_time' => 'required|after:start_time',
+            'venue' => 'required|string|max:255',
+            'address' => 'required|string|max:255',
+            'city' => 'required|string|max:100',
+            'state' => 'required|string|max:100',
             'price' => 'required|numeric|min:0',
-            'deposit_amount' => 'nullable|numeric|min:0',
-            'deposit_percentage' => 'nullable|integer|min:1|max:100',
-            'terms_and_conditions' => 'nullable|string',
-            'images' => 'nullable|array|max:10',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+            'capacity' => 'required|integer|min:1',
             'amenities' => 'nullable|array',
-            'status' => 'required|in:draft,published,cancelled,completed',
-            'is_public' => 'boolean',
             'allow_partial_payment' => 'boolean',
+            'partial_payment_amount' => 'nullable|numeric|min:0',
+            'terms_conditions' => 'nullable|string',
+            'cancellation_policy' => 'nullable|string',
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
-        $eventData = $request->except(['images']);
-        $eventData['amenities'] = $request->amenities ?? [];
-        $eventData['is_public'] = $request->boolean('is_public', true);
-        $eventData['allow_partial_payment'] = $request->boolean('allow_partial_payment', true);
+        // RACE CONDITION FIX: Generate unique event reference using database transaction
+        $event = DB::transaction(function () use ($validated) {
+            // Get the next sequence number atomically
+            $nextNumber = DB::table('events')
+                ->lockForUpdate()
+                ->max(DB::raw('CAST(SUBSTRING(event_reference, 4) AS UNSIGNED)')) + 1;
 
-        // Handle image uploads
-        if ($request->hasFile('images')) {
-            $imagePaths = [];
-            foreach ($request->file('images') as $image) {
-                $path = $image->store('events', 'public');
-                $imagePaths[] = $path;
+            $eventReference = 'EVT' . str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
+
+            // Handle image uploads
+            $images = [];
+            if (request()->hasFile('images')) {
+                foreach (request()->file('images') as $image) {
+                    $path = $image->store('events', 'public');
+                    $images[] = $path;
+                }
             }
-            $eventData['images'] = $imagePaths;
-        }
 
-        $event = Event::create($eventData);
+            return Event::create([
+                ...$validated,
+                'event_reference' => $eventReference,
+                'images' => $images,
+                'booked_count' => 0,
+                'status' => 'draft',
+                'is_active' => true,
+            ]);
+        });
 
         activity()
             ->causedBy(auth()->user())
@@ -119,64 +137,68 @@ class EventController extends Controller
     }
 
     /**
-     * Display the specified event.
+     * Display the specified resource.
      */
     public function show(Event $event): View
     {
-        $event->load(['category', 'bookings']);
-        return view('booking.events.show', compact('event'));
+        $this->authorize('view', $event);
+        $event->load(['bookings']);
+        return view('admin.events.show', compact('event'));
     }
 
     /**
-     * Show the form for editing the event.
+     * Show the form for editing the specified resource.
      */
     public function edit(Event $event): View
     {
-        $categories = EventCategory::active()->get();
-        return view('booking.events.edit', compact('event', 'categories'));
+        $this->authorize('update', $event);
+        return view('admin.events.edit', compact('event'));
     }
 
     /**
-     * Update the specified event.
+     * Update the specified resource in storage.
      */
     public function update(Request $request, Event $event): RedirectResponse
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
+        $this->authorize('update', $event);
+        
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'category_id' => 'required|exists:event_categories,id',
-            'location' => 'required|string|max:255',
+            'short_description' => 'nullable|string|max:500',
             'start_date' => 'required|date',
-            'end_date' => 'required|date|after:start_date',
-            'capacity' => 'required|integer|min:1',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'start_time' => 'required',
+            'end_time' => 'required|after:start_time',
+            'venue' => 'required|string|max:255',
+            'address' => 'required|string|max:255',
+            'city' => 'required|string|max:100',
+            'state' => 'required|string|max:100',
             'price' => 'required|numeric|min:0',
-            'deposit_amount' => 'nullable|numeric|min:0',
-            'deposit_percentage' => 'nullable|integer|min:1|max:100',
-            'terms_and_conditions' => 'nullable|string',
-            'images' => 'nullable|array|max:10',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+            'capacity' => 'required|integer|min:1',
             'amenities' => 'nullable|array',
-            'status' => 'required|in:draft,published,cancelled,completed',
-            'is_public' => 'boolean',
+            'status' => ['required', Rule::in(['draft', 'published', 'cancelled', 'completed'])],
+            'is_active' => 'boolean',
             'allow_partial_payment' => 'boolean',
+            'partial_payment_amount' => 'nullable|numeric|min:0',
+            'terms_conditions' => 'nullable|string',
+            'cancellation_policy' => 'nullable|string',
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
-        $eventData = $request->except(['images']);
-        $eventData['amenities'] = $request->amenities ?? [];
-        $eventData['is_public'] = $request->boolean('is_public', true);
-        $eventData['allow_partial_payment'] = $request->boolean('allow_partial_payment', true);
-
-        // Handle image uploads
+        // Handle new image uploads
+        $currentImages = $event->images ?? [];
         if ($request->hasFile('images')) {
-            $imagePaths = $event->images ?? [];
             foreach ($request->file('images') as $image) {
                 $path = $image->store('events', 'public');
-                $imagePaths[] = $path;
+                $currentImages[] = $path;
             }
-            $eventData['images'] = $imagePaths;
         }
 
-        $event->update($eventData);
+        $event->update([
+            ...$validated,
+            'images' => $currentImages,
+        ]);
 
         activity()
             ->causedBy(auth()->user())
@@ -188,17 +210,19 @@ class EventController extends Controller
     }
 
     /**
-     * Remove the specified event.
+     * Remove the specified resource from storage.
      */
     public function destroy(Event $event): RedirectResponse
     {
+        $this->authorize('delete', $event);
+        
         // Check if event has bookings
         if ($event->bookings()->exists()) {
             return redirect()->route('admin.events.index')
                 ->with('error', 'Cannot delete event with existing bookings.');
         }
 
-        // Delete associated images
+        // Delete images from storage
         if ($event->images) {
             foreach ($event->images as $image) {
                 Storage::disk('public')->delete($image);
@@ -217,11 +241,50 @@ class EventController extends Controller
     }
 
     /**
-     * Toggle event status.
-     * BUG FIX: Now handles all event statuses (draft, published, cancelled, completed)
+     * SECURITY FIX: Remove image with proper validation
+     */
+    public function removeImage(Event $event, Request $request): RedirectResponse
+    {
+        $this->authorize('update', $event);
+        
+        $request->validate([
+            'image_index' => 'required|integer|min:0'
+        ]);
+
+        $imageIndex = $request->image_index;
+        $images = $event->images ?? [];
+
+        // SECURITY FIX: Validate image index exists
+        if (!isset($images[$imageIndex])) {
+            return redirect()->back()
+                ->with('error', 'Image not found. It may have already been removed.');
+        }
+
+        // Delete file from storage
+        Storage::disk('public')->delete($images[$imageIndex]);
+
+        // Remove from array
+        unset($images[$imageIndex]);
+        $images = array_values($images); // Re-index array
+
+        $event->update(['images' => $images]);
+
+        activity()
+            ->causedBy(auth()->user())
+            ->performedOn($event)
+            ->log('Event image removed');
+
+        return redirect()->back()
+            ->with('success', 'Image removed successfully.');
+    }
+
+    /**
+     * BUSINESS LOGIC FIX: Toggle event status with proper state transitions
      */
     public function toggleStatus(Event $event): RedirectResponse
     {
+        $this->authorize('update', $event);
+        
         // Define status transitions
         $statusTransitions = [
             'draft' => 'published',
@@ -249,55 +312,5 @@ class EventController extends Controller
 
         return redirect()->route('admin.events.index')
             ->with('success', "Event {$message} successfully.");
-    }
-
-    /**
-     * Remove image from event.
-     * BUG FIX: Added proper validation and error handling for image removal
-     */
-    public function removeImage(Event $event, Request $request): RedirectResponse
-    {
-        $request->validate([
-            'image_index' => 'required|integer|min:0'
-        ]);
-
-        $imageIndex = $request->image_index;
-        $images = $event->images ?? [];
-
-        if (!isset($images[$imageIndex])) {
-            return redirect()->back()
-                ->with('error', 'Image not found. It may have already been removed.');
-        }
-
-        // Delete file from storage
-        Storage::disk('public')->delete($images[$imageIndex]);
-        
-        // Remove from array
-        unset($images[$imageIndex]);
-        $images = array_values($images); // Re-index array
-        
-        $event->update(['images' => $images]);
-
-        activity()
-            ->causedBy(auth()->user())
-            ->performedOn($event)
-            ->log('Event image removed');
-
-        return redirect()->back()
-            ->with('success', 'Image removed successfully.');
-    }
-
-    /**
-     * Get calendar view of events.
-     */
-    public function calendar(): View
-    {
-        $events = Event::with('category')
-            ->where('status', 'published')
-            ->where('start_date', '>=', now()->subDays(30))
-            ->where('start_date', '<=', now()->addDays(90))
-            ->get();
-
-        return view('booking.events.calendar', compact('events'));
     }
 }

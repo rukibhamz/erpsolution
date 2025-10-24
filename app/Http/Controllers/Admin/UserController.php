@@ -4,82 +4,96 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\Role;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\View\View;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
     /**
-     * Display a listing of users.
+     * Display a listing of the resource.
      */
     public function index(Request $request): View
     {
-        $query = User::with('roles');
+        $this->authorize('viewAny', User::class);
+        
+        $query = User::with(['roles']);
 
-        // Search functionality
+        // Apply filters
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
+            $query->where(function ($q) use ($request) {
+                $q->where('name', 'like', '%' . $request->search . '%')
+                  ->orWhere('email', 'like', '%' . $request->search . '%')
+                  ->orWhere('phone', 'like', '%' . $request->search . '%');
             });
         }
 
-        // Filter by role
         if ($request->filled('role')) {
             $query->whereHas('roles', function ($q) use ($request) {
                 $q->where('name', $request->role);
             });
         }
 
-        // Filter by status
-        if ($request->filled('status')) {
-            $query->where('is_active', $request->status === 'active');
+        if ($request->filled('is_active')) {
+            $query->where('is_active', $request->is_active);
         }
 
         $users = $query->latest()->paginate(15);
-        $roles = Role::active()->get();
+        $roles = Role::all();
 
         return view('admin.users.index', compact('users', 'roles'));
     }
 
     /**
-     * Show the form for creating a new user.
+     * Show the form for creating a new resource.
      */
     public function create(): View
     {
-        $roles = Role::active()->get();
+        $this->authorize('create', User::class);
+        $roles = Role::all();
         return view('admin.users.create', compact('roles'));
     }
 
     /**
-     * Store a newly created user.
+     * Store a newly created resource in storage.
      */
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
+        $this->authorize('create', User::class);
+        
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'phone' => 'nullable|string|max:20',
             'password' => 'required|string|min:8|confirmed',
-            'roles' => 'required|array',
-            'roles.*' => 'exists:roles,id',
+            'phone' => 'nullable|string|max:20',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'is_active' => 'boolean',
+            'roles' => 'required|array|min:1',
+            'roles.*' => 'exists:roles,id',
         ]);
+
+        // Handle avatar upload
+        if ($request->hasFile('avatar')) {
+            $path = $request->file('avatar')->store('avatars', 'public');
+            $validated['avatar'] = $path;
+        }
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'password' => bcrypt($request->password),
-            'is_active' => $request->boolean('is_active', true),
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'phone' => $validated['phone'],
+            'avatar' => $validated['avatar'] ?? null,
+            'is_active' => $validated['is_active'] ?? true,
+            'email_verified_at' => now(),
         ]);
 
-        $user->roles()->sync($request->roles);
+        // Assign roles
+        $user->assignRole($validated['roles']);
 
         activity()
             ->causedBy(auth()->user())
@@ -91,52 +105,73 @@ class UserController extends Controller
     }
 
     /**
-     * Display the specified user.
+     * Display the specified resource.
      */
     public function show(User $user): View
     {
-        $user->load('roles');
+        $this->authorize('view', $user);
+        $user->load(['roles', 'permissions']);
         return view('admin.users.show', compact('user'));
     }
 
     /**
-     * Show the form for editing the user.
+     * Show the form for editing the specified resource.
      */
     public function edit(User $user): View
     {
-        $roles = Role::active()->get();
-        $user->load('roles');
+        $this->authorize('update', $user);
+        $roles = Role::all();
         return view('admin.users.edit', compact('user', 'roles'));
     }
 
     /**
-     * Update the specified user.
+     * Update the specified resource in storage.
      */
     public function update(Request $request, User $user): RedirectResponse
     {
-        $request->validate([
+        $this->authorize('update', $user);
+        
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
-            'phone' => 'nullable|string|max:20',
             'password' => 'nullable|string|min:8|confirmed',
-            'roles' => 'required|array',
-            'roles.*' => 'exists:roles,id',
+            'phone' => 'nullable|string|max:20',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'is_active' => 'boolean',
+            'roles' => 'required|array|min:1',
+            'roles.*' => 'exists:roles,id',
         ]);
 
-        $userData = [
-            'name' => $request->name,
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'is_active' => $request->boolean('is_active', true),
-        ];
-
-        if ($request->filled('password')) {
-            $userData['password'] = bcrypt($request->password);
+        // Handle avatar upload
+        if ($request->hasFile('avatar')) {
+            // Delete old avatar
+            if ($user->avatar) {
+                Storage::disk('public')->delete($user->avatar);
+            }
+            
+            $path = $request->file('avatar')->store('avatars', 'public');
+            $validated['avatar'] = $path;
         }
 
-        $user->update($userData);
-        $user->roles()->sync($request->roles);
+        $updateData = [
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'],
+            'is_active' => $validated['is_active'] ?? true,
+        ];
+
+        if ($validated['avatar']) {
+            $updateData['avatar'] = $validated['avatar'];
+        }
+
+        if ($validated['password']) {
+            $updateData['password'] = Hash::make($validated['password']);
+        }
+
+        $user->update($updateData);
+
+        // Update roles
+        $user->syncRoles($validated['roles']);
 
         activity()
             ->causedBy(auth()->user())
@@ -148,14 +183,21 @@ class UserController extends Controller
     }
 
     /**
-     * Remove the specified user.
+     * Remove the specified resource from storage.
      */
     public function destroy(User $user): RedirectResponse
     {
-        // Prevent deleting the current user
+        $this->authorize('delete', $user);
+        
+        // Prevent deletion of current user
         if ($user->id === auth()->id()) {
             return redirect()->route('admin.users.index')
-                ->with('error', 'You cannot delete your own account.');
+                ->with('error', 'Cannot delete your own account.');
+        }
+
+        // Delete avatar if exists
+        if ($user->avatar) {
+            Storage::disk('public')->delete($user->avatar);
         }
 
         $user->delete();
@@ -170,10 +212,18 @@ class UserController extends Controller
     }
 
     /**
-     * Toggle user active status.
+     * Toggle user active status
      */
     public function toggleStatus(User $user): RedirectResponse
     {
+        $this->authorize('update', $user);
+        
+        // Prevent deactivating current user
+        if ($user->id === auth()->id()) {
+            return redirect()->route('admin.users.index')
+                ->with('error', 'Cannot deactivate your own account.');
+        }
+
         $user->update(['is_active' => !$user->is_active]);
 
         $status = $user->is_active ? 'activated' : 'deactivated';
@@ -183,7 +233,7 @@ class UserController extends Controller
             ->performedOn($user)
             ->log("User {$status}");
 
-        return redirect()->route('admin.users.index')
+        return redirect()->back()
             ->with('success', "User {$status} successfully.");
     }
 }

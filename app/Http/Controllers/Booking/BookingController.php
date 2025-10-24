@@ -3,295 +3,273 @@
 namespace App\Http\Controllers\Booking;
 
 use App\Http\Controllers\Controller;
-use App\Models\EventBooking;
+use App\Models\Booking;
 use App\Models\Event;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\View\View;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class BookingController extends Controller
 {
     /**
-     * Display a listing of bookings.
+     * Display a listing of the resource.
      */
     public function index(Request $request): View
     {
-        $query = EventBooking::with(['event', 'createdBy']);
+        $this->authorize('viewAny', Booking::class);
+        
+        $query = Booking::with(['event']);
 
-        // Search functionality
+        // Apply filters
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('booking_reference', 'like', "%{$search}%")
-                  ->orWhere('customer_name', 'like', "%{$search}%")
-                  ->orWhere('customer_email', 'like', "%{$search}%")
-                  ->orWhere('customer_phone', 'like', "%{$search}%");
+            $query->where(function ($q) use ($request) {
+                $q->where('booking_reference', 'like', '%' . $request->search . '%')
+                  ->orWhere('customer_name', 'like', '%' . $request->search . '%')
+                  ->orWhere('customer_email', 'like', '%' . $request->search . '%');
             });
         }
 
-        // Filter by booking status
         if ($request->filled('booking_status')) {
             $query->where('booking_status', $request->booking_status);
         }
 
-        // Filter by payment status
         if ($request->filled('payment_status')) {
             $query->where('payment_status', $request->payment_status);
         }
 
-        // Filter by event
         if ($request->filled('event_id')) {
             $query->where('event_id', $request->event_id);
         }
 
-        // Filter by date range
-        if ($request->filled('start_date')) {
-            $query->whereHas('event', function ($q) use ($request) {
-                $q->where('start_date', '>=', $request->start_date);
-            });
+        if ($request->filled('date_from')) {
+            $query->where('booking_date', '>=', $request->date_from);
         }
-        if ($request->filled('end_date')) {
-            $query->whereHas('event', function ($q) use ($request) {
-                $q->where('start_date', '<=', $request->end_date);
-            });
+
+        if ($request->filled('date_to')) {
+            $query->where('booking_date', '<=', $request->date_to);
         }
 
         $bookings = $query->latest()->paginate(15);
         $events = Event::published()->get();
 
-        return view('booking.bookings.index', compact('bookings', 'events'));
+        return view('admin.bookings.index', compact('bookings', 'events'));
     }
 
     /**
-     * Show the form for creating a new booking.
+     * Show the form for creating a new resource.
      */
-    public function create(Request $request): View
+    public function create(): View
     {
+        $this->authorize('create', Booking::class);
         $events = Event::published()->get();
-        $selectedEvent = $request->event_id ? Event::find($request->event_id) : null;
-        
-        return view('booking.bookings.create', compact('events', 'selectedEvent'));
+        return view('admin.bookings.create', compact('events'));
     }
 
     /**
-     * Store a newly created booking.
+     * Store a newly created resource in storage.
      */
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
+        $this->authorize('create', Booking::class);
+        
+        $validated = $request->validate([
             'event_id' => 'required|exists:events,id',
             'customer_name' => 'required|string|max:255',
-            'customer_email' => 'required|string|email|max:255',
+            'customer_email' => 'required|email|max:255',
             'customer_phone' => 'required|string|max:20',
-            'number_of_attendees' => 'required|integer|min:1',
-            'special_requirements' => 'nullable|string',
-            'notes' => 'nullable|string',
+            'customer_address' => 'nullable|string|max:500',
+            'ticket_quantity' => 'required|integer|min:1',
+            'special_requests' => 'nullable|string|max:1000',
+            'notes' => 'nullable|string|max:1000',
         ]);
 
-        $event = Event::findOrFail($request->event_id);
+        // Get the event
+        $event = Event::findOrFail($validated['event_id']);
 
-        // Check if event is available
-        if ($event->status !== 'published') {
+        // Check if event has available spots
+        if (!$event->hasAvailableSpots()) {
             return redirect()->back()
-                ->with('error', 'Selected event is not available for booking.');
+                ->with('error', 'Event is fully booked.');
         }
 
-        // Check if event is fully booked
-        if ($event->isFullyBooked()) {
+        // Check if requested quantity is available
+        if ($validated['ticket_quantity'] > $event->available_spots) {
             return redirect()->back()
-                ->with('error', 'Selected event is fully booked.');
+                ->with('error', 'Requested quantity exceeds available spots.');
         }
 
-        // Check if requested attendees exceed remaining capacity
-        if ($event->remaining_capacity < $request->number_of_attendees) {
-            return redirect()->back()
-                ->with('error', 'Not enough capacity for the requested number of attendees.');
-        }
+        // RACE CONDITION FIX: Generate unique booking reference using database transaction
+        $booking = DB::transaction(function () use ($validated, $event) {
+            // Get the next sequence number atomically
+            $nextNumber = DB::table('bookings')
+                ->lockForUpdate()
+                ->max(DB::raw('CAST(SUBSTRING(booking_reference, 4) AS UNSIGNED)')) + 1;
 
-        // Calculate amounts
-        $totalAmount = $event->price_per_person * $request->number_of_attendees;
-        $depositAmount = $event->deposit_amount;
-        if ($event->deposit_percentage) {
-            $depositAmount = ($totalAmount * $event->deposit_percentage) / 100;
-        }
-        $balanceAmount = $totalAmount - $depositAmount;
+            $bookingReference = 'BKG' . str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
 
-        // Generate booking reference
-        $bookingReference = 'BK-' . str_pad(EventBooking::count() + 1, 6, '0', STR_PAD_LEFT);
+            $totalAmount = $event->price * $validated['ticket_quantity'];
+            $balanceAmount = $totalAmount;
 
-        $booking = EventBooking::create([
-            'booking_reference' => $bookingReference,
-            'event_id' => $request->event_id,
-            'customer_name' => $request->customer_name,
-            'customer_email' => $request->customer_email,
-            'customer_phone' => $request->customer_phone,
-            'number_of_attendees' => $request->number_of_attendees,
-            'total_amount' => $totalAmount,
-            'deposit_amount' => $depositAmount,
-            'balance_amount' => $balanceAmount,
-            'amount_paid' => 0,
-            'payment_status' => 'pending',
-            'booking_status' => 'pending',
-            'special_requirements' => $request->special_requirements,
-            'notes' => $request->notes,
-            'created_by' => auth()->id(),
-        ]);
+            $booking = Booking::create([
+                ...$validated,
+                'booking_reference' => $bookingReference,
+                'total_amount' => $totalAmount,
+                'paid_amount' => 0,
+                'balance_amount' => $balanceAmount,
+                'payment_status' => 'pending',
+                'booking_status' => 'pending',
+                'booking_date' => now(),
+            ]);
+
+            // Update event booked count
+            $event->increment('booked_count', $validated['ticket_quantity']);
+
+            return $booking;
+        });
 
         activity()
             ->causedBy(auth()->user())
             ->performedOn($booking)
-            ->log('Event booking created');
+            ->log('Booking created');
 
         return redirect()->route('admin.bookings.show', $booking)
             ->with('success', 'Booking created successfully.');
     }
 
     /**
-     * Display the specified booking.
+     * Display the specified resource.
      */
-    public function show(EventBooking $booking): View
+    public function show(Booking $booking): View
     {
-        $booking->load(['event', 'payments', 'createdBy']);
-        return view('booking.bookings.show', compact('booking'));
+        $this->authorize('view', $booking);
+        $booking->load(['event']);
+        return view('admin.bookings.show', compact('booking'));
     }
 
     /**
-     * Show the form for editing the booking.
+     * Show the form for editing the specified resource.
      */
-    public function edit(EventBooking $booking): View
+    public function edit(Booking $booking): View
     {
+        $this->authorize('update', $booking);
         $events = Event::published()->get();
-        return view('booking.bookings.edit', compact('booking', 'events'));
+        return view('admin.bookings.edit', compact('booking', 'events'));
     }
 
     /**
-     * Update the specified booking.
+     * Update the specified resource in storage.
      */
-    public function update(Request $request, EventBooking $booking): RedirectResponse
+    public function update(Request $request, Booking $booking): RedirectResponse
     {
-        $request->validate([
+        $this->authorize('update', $booking);
+        
+        $validated = $request->validate([
             'customer_name' => 'required|string|max:255',
-            'customer_email' => 'required|string|email|max:255',
+            'customer_email' => 'required|email|max:255',
             'customer_phone' => 'required|string|max:20',
-            'number_of_attendees' => 'required|integer|min:1',
-            'special_requirements' => 'nullable|string',
-            'notes' => 'nullable|string',
+            'customer_address' => 'nullable|string|max:500',
+            'ticket_quantity' => 'required|integer|min:1',
+            'special_requests' => 'nullable|string|max:1000',
+            'notes' => 'nullable|string|max:1000',
         ]);
 
-        // Check if new attendee count exceeds event capacity
-        $event = $booking->event;
-        $currentAttendees = $event->total_attendees - $booking->number_of_attendees;
-        $newTotalAttendees = $currentAttendees + $request->number_of_attendees;
-        
-        if ($newTotalAttendees > $event->max_attendees) {
+        // Check if new quantity is available
+        $quantityDifference = $validated['ticket_quantity'] - $booking->ticket_quantity;
+        if ($quantityDifference > 0 && $booking->event->available_spots < $quantityDifference) {
             return redirect()->back()
-                ->with('error', 'Not enough capacity for the requested number of attendees.');
+                ->with('error', 'Insufficient available spots for the requested quantity.');
         }
 
-        $booking->update([
-            'customer_name' => $request->customer_name,
-            'customer_email' => $request->customer_email,
-            'customer_phone' => $request->customer_phone,
-            'number_of_attendees' => $request->number_of_attendees,
-            'special_requirements' => $request->special_requirements,
-            'notes' => $request->notes,
-        ]);
+        $booking->update($validated);
 
-        // Recalculate amounts if attendee count changed
-        if ($booking->number_of_attendees != $request->number_of_attendees) {
-            $totalAmount = $event->price_per_person * $request->number_of_attendees;
-            $depositAmount = $event->deposit_amount;
-            if ($event->deposit_percentage) {
-                $depositAmount = ($totalAmount * $event->deposit_percentage) / 100;
-            }
-            $balanceAmount = $totalAmount - $depositAmount;
-
+        // Update event booked count if quantity changed
+        if ($quantityDifference != 0) {
+            $booking->event->increment('booked_count', $quantityDifference);
+            
+            // Recalculate amounts
+            $totalAmount = $booking->event->price * $validated['ticket_quantity'];
+            $balanceAmount = $totalAmount - $booking->paid_amount;
+            
             $booking->update([
                 'total_amount' => $totalAmount,
-                'deposit_amount' => $depositAmount,
                 'balance_amount' => $balanceAmount,
             ]);
-
-            // Update payment status
-            $booking->updatePaymentStatus();
         }
 
         activity()
             ->causedBy(auth()->user())
             ->performedOn($booking)
-            ->log('Event booking updated');
+            ->log('Booking updated');
 
         return redirect()->route('admin.bookings.index')
             ->with('success', 'Booking updated successfully.');
     }
 
     /**
-     * Confirm the specified booking.
+     * Remove the specified resource from storage.
      */
-    public function confirm(EventBooking $booking): RedirectResponse
+    public function destroy(Booking $booking): RedirectResponse
     {
-        $booking->markAsConfirmed();
-
-        activity()
-            ->causedBy(auth()->user())
-            ->performedOn($booking)
-            ->log('Event booking confirmed');
-
-        return redirect()->route('admin.bookings.index')
-            ->with('success', 'Booking confirmed successfully.');
-    }
-
-    /**
-     * Cancel the specified booking.
-     */
-    public function cancel(EventBooking $booking): RedirectResponse
-    {
-        $booking->markAsCancelled();
-
-        activity()
-            ->causedBy(auth()->user())
-            ->performedOn($booking)
-            ->log('Event booking cancelled');
-
-        return redirect()->route('admin.bookings.index')
-            ->with('success', 'Booking cancelled successfully.');
-    }
-
-    /**
-     * Complete the specified booking.
-     */
-    public function complete(EventBooking $booking): RedirectResponse
-    {
-        $booking->markAsCompleted();
-
-        activity()
-            ->causedBy(auth()->user())
-            ->performedOn($booking)
-            ->log('Event booking completed');
-
-        return redirect()->route('admin.bookings.index')
-            ->with('success', 'Booking completed successfully.');
-    }
-
-    /**
-     * Remove the specified booking.
-     */
-    public function destroy(EventBooking $booking): RedirectResponse
-    {
-        // Check if booking has payments
-        if ($booking->payments()->exists()) {
+        $this->authorize('delete', $booking);
+        
+        // Check if booking can be cancelled
+        if ($booking->booking_status === 'confirmed' && $booking->payment_status === 'paid') {
             return redirect()->route('admin.bookings.index')
-                ->with('error', 'Cannot delete booking with payment records.');
+                ->with('error', 'Cannot delete confirmed and paid booking.');
         }
+
+        // Update event booked count
+        $booking->event->decrement('booked_count', $booking->ticket_quantity);
 
         $booking->delete();
 
         activity()
             ->causedBy(auth()->user())
             ->performedOn($booking)
-            ->log('Event booking deleted');
+            ->log('Booking deleted');
 
         return redirect()->route('admin.bookings.index')
             ->with('success', 'Booking deleted successfully.');
+    }
+
+    /**
+     * Confirm booking
+     */
+    public function confirm(Booking $booking): RedirectResponse
+    {
+        $this->authorize('update', $booking);
+        
+        $booking->update(['booking_status' => 'confirmed']);
+
+        activity()
+            ->causedBy(auth()->user())
+            ->performedOn($booking)
+            ->log('Booking confirmed');
+
+        return redirect()->back()
+            ->with('success', 'Booking confirmed successfully.');
+    }
+
+    /**
+     * Cancel booking
+     */
+    public function cancel(Booking $booking): RedirectResponse
+    {
+        $this->authorize('update', $booking);
+        
+        $booking->update(['booking_status' => 'cancelled']);
+
+        // Update event booked count
+        $booking->event->decrement('booked_count', $booking->ticket_quantity);
+
+        activity()
+            ->causedBy(auth()->user())
+            ->performedOn($booking)
+            ->log('Booking cancelled');
+
+        return redirect()->back()
+            ->with('success', 'Booking cancelled successfully.');
     }
 }

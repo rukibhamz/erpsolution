@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Accounting;
 use App\Http\Controllers\Controller;
 use App\Models\Transaction;
 use App\Models\Account;
+use App\Services\TransactionApprovalService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -190,56 +191,73 @@ class TransactionController extends Controller
     }
 
     /**
-     * Approve transaction
-     * BUSINESS LOGIC FIX: Added proper validation and error handling
+     * BUSINESS LOGIC FIX: Approve transaction with comprehensive validation
      */
     public function approve(Transaction $transaction): RedirectResponse
     {
-        try {
-            $transaction->approve(auth()->user());
-            
+        $approvalService = new TransactionApprovalService();
+        $result = $approvalService->approveTransaction($transaction, auth()->user());
+        
+        if ($result['success']) {
             activity()
                 ->causedBy(auth()->user())
                 ->performedOn($transaction)
                 ->log('Transaction approved');
 
+            $message = 'Transaction approved successfully.';
+            if (!empty($result['warnings'])) {
+                $message .= ' Warnings: ' . implode(', ', $result['warnings']);
+            }
+            
             return redirect()->back()
-                ->with('success', 'Transaction approved successfully.');
-        } catch (\Exception $e) {
+                ->with('success', $message);
+        } else {
             return redirect()->back()
-                ->with('error', $e->getMessage());
+                ->with('error', implode(', ', $result['errors']));
         }
     }
 
     /**
-     * Reject transaction
+     * BUSINESS LOGIC FIX: Reject transaction with proper validation
      */
     public function reject(Transaction $transaction): RedirectResponse
     {
-        $transaction->reject();
+        $approvalService = new TransactionApprovalService();
+        $result = $approvalService->rejectTransaction($transaction, auth()->user());
+        
+        if ($result['success']) {
+            activity()
+                ->causedBy(auth()->user())
+                ->performedOn($transaction)
+                ->log('Transaction rejected');
 
-        activity()
-            ->causedBy(auth()->user())
-            ->performedOn($transaction)
-            ->log('Transaction rejected');
-
-        return redirect()->back()
-            ->with('success', 'Transaction rejected successfully.');
+            return redirect()->back()
+                ->with('success', 'Transaction rejected successfully.');
+        } else {
+            return redirect()->back()
+                ->with('error', implode(', ', $result['errors']));
+        }
     }
 
     /**
-     * Cancel transaction
+     * BUSINESS LOGIC FIX: Cancel transaction with proper validation
      */
     public function cancel(Transaction $transaction): RedirectResponse
     {
-        $transaction->cancel();
+        $approvalService = new TransactionApprovalService();
+        $result = $approvalService->cancelTransaction($transaction, auth()->user());
+        
+        if ($result['success']) {
+            activity()
+                ->causedBy(auth()->user())
+                ->performedOn($transaction)
+                ->log('Transaction cancelled');
 
-        activity()
-            ->causedBy(auth()->user())
-            ->performedOn($transaction)
-            ->log('Transaction cancelled');
-
-        return redirect()->back()
-            ->with('success', 'Transaction cancelled successfully.');
+            return redirect()->back()
+                ->with('success', 'Transaction cancelled successfully.');
+        } else {
+            return redirect()->back()
+                ->with('error', implode(', ', $result['errors']));
+        }
     }
 }
